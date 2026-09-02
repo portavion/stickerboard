@@ -7,6 +7,7 @@ Android sticker keyboard that sits beside Gboard. Switch to it, tap a sticker, G
 Needs the same Android SDK/JDK as a normal Gradle app.
 
 ```sh
+bash scripts/check-no-compose-effect.sh
 ./gradlew assembleDebug
 ```
 
