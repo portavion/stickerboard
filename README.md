@@ -11,7 +11,22 @@ bash scripts/check-no-compose-effect.sh
 ./gradlew assembleDebug
 ```
 
-Sideload with `./gradlew installDebug` (or wireless adb).
+Sideload a debug build with `./gradlew installDebug` (or wireless adb). Debug and release use different keys — do not install debug over a release phone install, or the other way around. Android will refuse, and uninstalling to force it deletes every sticker.
+
+## Release
+
+Stickers live in the app’s private data. They survive an update only if the APK is signed with the **same** key as the copy already on the phone.
+
+Always sign release with `~/.android/stickerboard-release.jks` (passwords in `~/.android/stickerboard-release.properties`). Never generate a new key. `./gradlew assembleRelease` / `installRelease` use that keystore and fail if it is missing.
+
+```sh
+./gradlew assembleRelease
+ANDROID_SERIAL=<phone> ./gradlew installRelease
+```
+
+For wireless adb, `ANDROID_SERIAL` is `host:port` from `adb devices` (not an emulator serial). Use `installRelease` or `adb install -r`. Never `adb uninstall com.portavion.stickerboard` to update — that wipes stickers.
+
+Share `app/build/outputs/apk/release/app-release.apk`. Recipients who already have stickerboard can sideload that file over the existing install; they must not uninstall first.
 
 ## Use
 

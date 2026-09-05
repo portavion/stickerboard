@@ -27,3 +27,4 @@ output-metadata.json
 # Signing
 *.jks
 *.keystore
+keystore.properties
