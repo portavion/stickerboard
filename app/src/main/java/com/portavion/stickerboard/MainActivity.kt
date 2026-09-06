@@ -14,16 +14,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
@@ -110,30 +111,61 @@ private fun LibraryScreen(resumeTick: Int) {
         if (stickers.isEmpty()) {
             Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files.")
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(88.dp),
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(stickers, key = { it.file.name }) { sticker ->
-                    Box {
-                        StickerThumb(
-                            sticker,
-                            Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                        )
-                        IconButton(
-                            onClick = {
-                                store.delete(sticker)
-                                tick++
-                            },
-                            modifier = Modifier.align(Alignment.TopEnd)
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                val cols = maxOf(1, (maxWidth / 88.dp).toInt())
+                val rows = maxOf(1, (maxHeight / 96.dp).toInt())
+                val pageSize = cols * rows
+                val pageCount = (stickers.size + pageSize - 1) / pageSize
+                val pagerState = rememberPagerState(pageCount = { pageCount })
+                Column(Modifier.fillMaxSize()) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    ) { page ->
+                        val slice = stickers.drop(page * pageSize).take(pageSize)
+                        Column(
+                            Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("×")
+                            repeat(rows) { r ->
+                                Row(
+                                    Modifier.weight(1f).fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    repeat(cols) { c ->
+                                        val sticker = slice.getOrNull(r * cols + c)
+                                        if (sticker == null) {
+                                            Spacer(Modifier.weight(1f).fillMaxHeight())
+                                        } else {
+                                            Box(Modifier.weight(1f).fillMaxHeight()) {
+                                                StickerThumb(
+                                                    sticker,
+                                                    Modifier.fillMaxSize()
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        store.delete(sticker)
+                                                        tick++
+                                                    },
+                                                    modifier = Modifier.align(Alignment.TopEnd)
+                                                ) {
+                                                    Text("×")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
+                    }
+                    if (pageCount > 1) {
+                        Text(
+                            "${pagerState.currentPage + 1} / $pageCount",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(top = 8.dp)
+                        )
                     }
                 }
             }

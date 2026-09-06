@@ -12,10 +12,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.GridView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -26,11 +24,15 @@ import androidx.core.view.doOnAttach
 import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 import kotlin.math.max
 
 class StickerImeService : InputMethodService() {
     private val store by lazy { StickerStore(this) }
-    private var adapter: StickerAdapter? = null
+    private var pages: PageAdapter? = null
+    private var pager: ViewPager2? = null
+    private var pageLabel: TextView? = null
     private var empty: TextView? = null
 
     override fun onEvaluateFullscreenMode() = false
@@ -57,24 +59,27 @@ class StickerImeService : InputMethodService() {
                 text = "stickerboard"
                 setTextColor(Color.WHITE)
                 setPadding(dp(12), 0, 0, 0)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             }
         )
+        pageLabel = TextView(this).apply {
+            setTextColor(0xFFAEAEB2.toInt())
+            gravity = Gravity.END
+        }
+        bar.addView(pageLabel)
         root.addView(bar)
 
         val body = FrameLayout(this)
-        val gridAdapter = StickerAdapter().also { adapter = it }
+        val pageAdapter = PageAdapter().also { pages = it }
         body.addView(
-            GridView(this).apply {
-                numColumns = 4
-                adapter = gridAdapter
-                onItemClickListener = android.widget.AdapterView.OnItemClickListener { _, _, pos, _ ->
-                    insertOrCopy(gridAdapter.getItem(pos))
-                }
-                onItemLongClickListener = android.widget.AdapterView.OnItemLongClickListener { _, _, pos, _ ->
-                    copyToClipboard(gridAdapter.getItem(pos))
-                    Toast.makeText(this@StickerImeService, R.string.copied, Toast.LENGTH_SHORT).show()
-                    true
-                }
+            ViewPager2(this).apply {
+                adapter = pageAdapter
+                pager = this
+                registerOnPageChangeCallback(
+                    object : ViewPager2.OnPageChangeCallback() {
+                        override fun onPageSelected(position: Int) = refreshPageLabel()
+                    }
+                )
             },
             FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -108,8 +113,18 @@ class StickerImeService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         val list = store.list()
-        adapter?.replace(list)
+        pages?.replace(list)
         empty?.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+        pager?.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+        val n = pages?.itemCount ?: 0
+        if (n == 0) pager?.setCurrentItem(0, false)
+        else if ((pager?.currentItem ?: 0) >= n) pager?.setCurrentItem(n - 1, false)
+        refreshPageLabel()
+    }
+
+    private fun refreshPageLabel() {
+        val n = pages?.itemCount ?: 0
+        pageLabel?.text = if (n > 1) "${(pager?.currentItem ?: 0) + 1} / $n" else ""
     }
 
     private fun insertOrCopy(sticker: Sticker) {
@@ -167,7 +182,7 @@ class StickerImeService : InputMethodService() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private inner class StickerAdapter : BaseAdapter() {
+    private inner class PageAdapter : RecyclerView.Adapter<PageAdapter.Holder>() {
         private var items: List<Sticker> = emptyList()
 
         fun replace(next: List<Sticker>) {
@@ -175,19 +190,78 @@ class StickerImeService : InputMethodService() {
             notifyDataSetChanged()
         }
 
-        override fun getCount() = items.size
-        override fun getItem(position: Int) = items[position]
-        override fun getItemId(position: Int) = items[position].file.name.hashCode().toLong()
+        override fun getItemCount() =
+            if (items.isEmpty()) 0 else (items.size + PAGE_SIZE - 1) / PAGE_SIZE
 
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view = (convertView as? ImageView) ?: ImageView(parent.context).apply {
-                val size = dp(72)
-                layoutParams = ViewGroup.LayoutParams(size, size)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setPadding(dp(6), dp(6), dp(6), dp(6))
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+            val page = LinearLayout(parent.context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = RecyclerView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
             }
-            view.setImageBitmap(StickerStore.thumbnail(items[position].file))
-            return view
+            return Holder(page)
         }
+
+        override fun onBindViewHolder(holder: Holder, position: Int) {
+            holder.bind(items.drop(position * PAGE_SIZE).take(PAGE_SIZE))
+        }
+
+        inner class Holder(private val page: LinearLayout) : RecyclerView.ViewHolder(page) {
+            fun bind(pageItems: List<Sticker>) {
+                page.removeAllViews()
+                repeat(ROWS) { r ->
+                    val row = LinearLayout(page.context).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            0,
+                            1f
+                        )
+                    }
+                    repeat(COLS) { c ->
+                        val cell = FrameLayout(page.context).apply {
+                            layoutParams = LinearLayout.LayoutParams(
+                                0,
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                1f
+                            )
+                        }
+                        pageItems.getOrNull(r * COLS + c)?.let { sticker ->
+                            cell.addView(
+                                ImageView(page.context).apply {
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    scaleType = ImageView.ScaleType.FIT_CENTER
+                                    setPadding(dp(6), dp(6), dp(6), dp(6))
+                                    setImageBitmap(StickerStore.thumbnail(sticker.file))
+                                    setOnClickListener { insertOrCopy(sticker) }
+                                    setOnLongClickListener {
+                                        copyToClipboard(sticker)
+                                        Toast.makeText(
+                                            this@StickerImeService,
+                                            R.string.copied,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        true
+                                    }
+                                }
+                            )
+                        }
+                        row.addView(cell)
+                    }
+                    page.addView(row)
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val COLS = 4
+        private const val ROWS = 3
+        private const val PAGE_SIZE = COLS * ROWS
     }
 }
