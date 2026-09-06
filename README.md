@@ -30,7 +30,7 @@ Share `app/build/outputs/apk/release/app-release.apk`. Recipients who already ha
 
 ## Use
 
-1. Open the app and add PNG, WebP, GIF, or JPEG stickers.
+1. Open the app and add PNG, WebP, GIF, or JPEG stickers, or share an image to stickerboard.
 2. Enable the stickerboard keyboard in system settings.
 3. In a chat, long-press Gboard’s spacebar and pick stickerboard.
 4. Tap a sticker to insert. Long-press copies it for Gboard’s clipboard.
