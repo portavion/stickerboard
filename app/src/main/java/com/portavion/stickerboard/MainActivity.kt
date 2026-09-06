@@ -2,6 +2,7 @@ package com.portavion.stickerboard
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
@@ -11,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) importShared(intent)
         enableEdgeToEdge()
         setContent {
             MaterialTheme {
@@ -53,11 +56,34 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        importShared(intent)
+        resumeTick.intValue++
+    }
+
     override fun onResume() {
         super.onResume()
         resumeTick.intValue++
     }
+
+    private fun importShared(intent: Intent?) {
+        val uris = sharedImageUris(intent) ?: return
+        val store = StickerStore(this)
+        uris.forEach { store.import(it) }
+    }
 }
+
+private fun sharedImageUris(intent: Intent?): List<Uri>? =
+    when (intent?.action) {
+        Intent.ACTION_SEND -> listOfNotNull(
+            IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+        )
+        Intent.ACTION_SEND_MULTIPLE ->
+            IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+        else -> null
+    }
 
 @Composable
 private fun LibraryScreen(resumeTick: Int) {
