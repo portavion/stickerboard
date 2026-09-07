@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image as ComposeImage
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,7 +69,7 @@ suspend fun startEditing(context: Context, sticker: Sticker): Editor = withConte
     val source = StickerStore.decode(sticker.original, maxPx = 1024)
         ?: return@withContext Editor.Failed(sticker, Segmentation.Failure.Unreadable)
     val currentSent = sticker.look?.let { StickerStore.decode(it, maxPx = 1024) }
-    when (val seg = segment(context, source.atLeast(512))) {
+    when (val seg = segment(context, source.atLeast(MIN_SEGMENT_SIDE))) {
         is Segmentation.Cut -> Editor.Choosing(
             sticker = sticker,
             previews = Look.all.associateWith { it.render(seg.raster).toBitmap() },
@@ -160,7 +160,7 @@ fun EditorScreen(
             Checkerboard(Modifier.fillMaxSize())
             when (state) {
                 is Editor.Segmenting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                is Editor.Choosing -> ComposeImage(
+                is Editor.Choosing -> Image(
                     bitmap = state.previews.getValue(state.chosen).asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize().padding(12.dp),
@@ -178,7 +178,7 @@ fun EditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 state.currentSent?.let { sent ->
-                    ComposeImage(
+                    Image(
                         bitmap = sent.asImageBitmap(),
                         contentDescription = stringResource(R.string.look_now_sending),
                         modifier = Modifier.size(48.dp),
@@ -257,6 +257,7 @@ private fun failureMessage(why: Segmentation.Failure): Int = when (why) {
 }
 
 private const val TAG = "stickerboard"
+private const val MIN_SEGMENT_SIDE = 512
 
 private fun moduleStillDownloading(error: Throwable): Boolean {
     var cur: Throwable? = error

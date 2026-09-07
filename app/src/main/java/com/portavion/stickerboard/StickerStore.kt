@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.compose.foundation.Image as ComposeImage
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -46,10 +46,10 @@ private fun ByteArray.startsMagic(offset: Int, vararg bytes: Int): Boolean {
     return bytes.indices.all { this[offset + it] == bytes[it].toByte() }
 }
 
-data class Image(val file: File, val format: ImageFormat)
+data class ImageFile(val file: File, val format: ImageFormat)
 
-data class Sticker(val original: Image, val look: Image?) {
-    val sent: Image get() = look ?: original
+data class Sticker(val original: ImageFile, val look: ImageFile?) {
+    val sent: ImageFile get() = look ?: original
     val stem: String get() = original.file.nameWithoutExtension
     val editable: Boolean get() = original.format != ImageFormat.GIF
 }
@@ -71,12 +71,12 @@ class StickerStore(private val context: Context) {
         dir.listFiles()
             ?.filter { it.isFile }
             ?.mapNotNull { file ->
-                ImageFormat.fromExtension(file.extension)?.let { Image(file, it) }
+                ImageFormat.fromExtension(file.extension)?.let { ImageFile(file, it) }
             }
             ?.sortedByDescending { it.file.lastModified() }
             ?.map { original ->
                 val lookFile = File(looksDir, "${original.file.nameWithoutExtension}.png")
-                val look = if (lookFile.isFile) Image(lookFile, ImageFormat.PNG) else null
+                val look = if (lookFile.isFile) ImageFile(lookFile, ImageFormat.PNG) else null
                 Sticker(original, look)
             }
             ?: emptyList()
@@ -120,7 +120,7 @@ class StickerStore(private val context: Context) {
                     dest.delete()
                     return@use ImportResult.Unreadable
                 }
-                ImportResult.Saved(Sticker(Image(dest, format), look = null))
+                ImportResult.Saved(Sticker(ImageFile(dest, format), look = null))
             } catch (_: IOException) {
                 tmp.delete()
                 dest.delete()
@@ -144,7 +144,7 @@ class StickerStore(private val context: Context) {
                 return null
             }
             sweepTmp(sticker.stem)
-            Sticker(sticker.original, Image(dest, ImageFormat.PNG))
+            Sticker(sticker.original, ImageFile(dest, ImageFormat.PNG))
         } catch (_: IOException) {
             tmp.delete()
             null
@@ -182,7 +182,7 @@ class StickerStore(private val context: Context) {
         private var n = 0
             get() = field++
 
-        fun decode(image: Image, maxPx: Int = 256): Bitmap? {
+        fun decode(image: ImageFile, maxPx: Int = 256): Bitmap? {
             val path = image.file.absolutePath
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, bounds)
@@ -204,7 +204,7 @@ fun StickerThumb(sticker: Sticker, modifier: Modifier = Modifier) {
         StickerStore.decode(sticker.sent)
     }
     if (bitmap != null) {
-        ComposeImage(
+        Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = sticker.stem,
             modifier = modifier,
