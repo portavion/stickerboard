@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -129,13 +130,23 @@ private fun LibraryScreen(resumeTick: Int) {
                 Text("Switch keyboard")
             }
         }
-        Button(onClick = {
-            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }) {
-            Text("Add stickers")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }) {
+                Text("Add stickers")
+            }
+            FilledTonalButton(onClick = {
+                when (val result = pasteStickers(context, store)) {
+                    is PasteResult.Saved -> tick++
+                    PasteResult.Empty -> toast(context, R.string.paste_empty)
+                    PasteResult.NotAnImage -> toast(context, R.string.paste_not_image)
+                    PasteResult.Unreadable -> toast(context, R.string.paste_unreadable)
+                }
+            }) { Text("Paste") }
         }
         if (stickers.isEmpty()) {
-            Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files.")
+            Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files, or paste an image.")
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val cols = maxOf(1, (maxWidth / 88.dp).toInt())
@@ -202,4 +213,8 @@ private fun LibraryScreen(resumeTick: Int) {
 private fun imeEnabled(context: Context): Boolean {
     val imm = context.getSystemService(InputMethodManager::class.java)
     return imm.enabledInputMethodList.any { it.packageName == context.packageName }
+}
+
+private fun toast(context: Context, resId: Int) {
+    Toast.makeText(context, resId, Toast.LENGTH_SHORT).show()
 }

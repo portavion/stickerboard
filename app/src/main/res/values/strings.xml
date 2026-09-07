@@ -4,4 +4,7 @@
     <string name="ime_name">stickerboard</string>
     <string name="paste_from_clipboard">Paste from Gboard clipboard</string>
     <string name="copied">Copied</string>
+    <string name="paste_empty">Nothing to paste</string>
+    <string name="paste_not_image">Clipboard isn\'t an image</string>
+    <string name="paste_unreadable">Couldn\'t read that image</string>
 </resources>
