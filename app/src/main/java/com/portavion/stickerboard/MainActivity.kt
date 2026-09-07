@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.view.KeyEvent
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -68,19 +67,6 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumeTick.intValue++
-    }
-
-    override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_V && event.isCtrlPressed) {
-            when (val result = pasteStickers(this, StickerStore(this))) {
-                is PasteResult.Saved -> resumeTick.intValue++
-                PasteResult.Empty -> toast(this, R.string.paste_empty)
-                PasteResult.NotAnImage -> toast(this, R.string.paste_not_image)
-                PasteResult.Unreadable -> toast(this, R.string.paste_unreadable)
-            }
-            return true
-        }
-        return super.onKeyShortcut(keyCode, event)
     }
 
     private fun importShared(intent: Intent?) {
