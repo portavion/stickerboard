@@ -136,13 +136,13 @@ class StickerImeService : InputMethodService() {
         }
         val accepted = editorInfo?.let { EditorInfoCompat.getContentMimeTypes(it) }.orEmpty()
         val canCommit = accepted.any { declared ->
-            ClipDescription.compareMimeTypes(sticker.mimeType, declared) ||
+            ClipDescription.compareMimeTypes(sticker.format.mime, declared) ||
                 ClipDescription.compareMimeTypes("image/*", declared)
         }
         if (canCommit && ic != null && editorInfo != null) {
             val content = InputContentInfoCompat(
                 uri,
-                ClipDescription(sticker.file.name, arrayOf(sticker.mimeType)),
+                ClipDescription(sticker.file.name, arrayOf(sticker.format.mime)),
                 null
             )
             val ok = InputConnectionCompat.commitContent(
