@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Image as ComposeImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -46,7 +46,13 @@ private fun ByteArray.startsMagic(offset: Int, vararg bytes: Int): Boolean {
     return bytes.indices.all { this[offset + it] == bytes[it].toByte() }
 }
 
-data class Sticker(val file: File, val format: ImageFormat)
+data class Image(val file: File, val format: ImageFormat)
+
+data class Sticker(val original: Image, val look: Image?) {
+    val sent: Image get() = look ?: original
+    val stem: String get() = original.file.nameWithoutExtension
+    val editable: Boolean get() = original.format != ImageFormat.GIF
+}
 
 sealed interface ImportResult {
     data class Saved(val sticker: Sticker) : ImportResult
@@ -58,13 +64,21 @@ class StickerStore(private val context: Context) {
     private val dir: File
         get() = File(context.filesDir, "stickers").also { it.mkdirs() }
 
+    private val looksDir: File
+        get() = File(dir, "looks").also { it.mkdirs() }
+
     fun list(): List<Sticker> =
         dir.listFiles()
             ?.filter { it.isFile }
             ?.mapNotNull { file ->
-                ImageFormat.fromExtension(file.extension)?.let { Sticker(file, it) }
+                ImageFormat.fromExtension(file.extension)?.let { Image(file, it) }
             }
             ?.sortedByDescending { it.file.lastModified() }
+            ?.map { original ->
+                val lookFile = File(looksDir, "${original.file.nameWithoutExtension}.png")
+                val look = if (lookFile.isFile) Image(lookFile, ImageFormat.PNG) else null
+                Sticker(original, look)
+            }
             ?: emptyList()
 
     fun import(uri: Uri): ImportResult {
@@ -106,7 +120,7 @@ class StickerStore(private val context: Context) {
                     dest.delete()
                     return@use ImportResult.Unreadable
                 }
-                ImportResult.Saved(Sticker(dest, format))
+                ImportResult.Saved(Sticker(Image(dest, format), look = null))
             } catch (_: IOException) {
                 tmp.delete()
                 dest.delete()
@@ -115,26 +129,69 @@ class StickerStore(private val context: Context) {
         }
     }
 
+    fun saveLook(sticker: Sticker, pixels: Bitmap): Sticker? {
+        if (!sticker.original.file.isFile) return null
+        val dest = File(looksDir, "${sticker.stem}.png")
+        val tmp = File(looksDir, "${dest.name}.tmp")
+        return try {
+            tmp.outputStream().use { out ->
+                if (!pixels.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    throw IOException("compress")
+                }
+            }
+            if (!tmp.renameTo(dest)) {
+                tmp.delete()
+                return null
+            }
+            sweepTmp(sticker.stem)
+            Sticker(sticker.original, Image(dest, ImageFormat.PNG))
+        } catch (_: IOException) {
+            tmp.delete()
+            null
+        }
+    }
+
+    fun clearLook(sticker: Sticker): Sticker {
+        File(looksDir, "${sticker.stem}.png").delete()
+        return Sticker(sticker.original, look = null)
+    }
+
     fun delete(sticker: Sticker) {
-        sticker.file.delete()
+        File(looksDir, "${sticker.stem}.png").delete()
+        sticker.original.file.delete()
+        sweepTmp(sticker.stem)
     }
 
     fun contentUri(sticker: Sticker): Uri =
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", sticker.file)
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", sticker.sent.file)
+
+    private fun sweepTmp(stem: String) {
+        sweepTmpIn(dir, stem)
+        sweepTmpIn(looksDir, stem)
+    }
+
+    private fun sweepTmpIn(folder: File, stem: String) {
+        folder.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.startsWith(stem) && file.name.endsWith(".tmp")) {
+                file.delete()
+            }
+        }
+    }
 
     companion object {
         private var n = 0
             get() = field++
 
-        fun thumbnail(file: File, maxPx: Int = 256): Bitmap? {
+        fun decode(image: Image, maxPx: Int = 256): Bitmap? {
+            val path = image.file.absolutePath
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            BitmapFactory.decodeFile(path, bounds)
             val w = bounds.outWidth.coerceAtLeast(1)
             val h = bounds.outHeight.coerceAtLeast(1)
             var sample = 1
             while (w / sample > maxPx || h / sample > maxPx) sample *= 2
             return BitmapFactory.decodeFile(
-                file.absolutePath,
+                path,
                 BitmapFactory.Options().apply { inSampleSize = sample }
             )
         }
@@ -143,13 +200,13 @@ class StickerStore(private val context: Context) {
 
 @Composable
 fun StickerThumb(sticker: Sticker, modifier: Modifier = Modifier) {
-    val bitmap = remember(sticker.file.path, sticker.file.lastModified()) {
-        StickerStore.thumbnail(sticker.file)
+    val bitmap = remember(sticker.sent.file.path, sticker.sent.file.lastModified()) {
+        StickerStore.decode(sticker.sent)
     }
     if (bitmap != null) {
-        Image(
+        ComposeImage(
             bitmap = bitmap.asImageBitmap(),
-            contentDescription = sticker.file.nameWithoutExtension,
+            contentDescription = sticker.stem,
             modifier = modifier,
             contentScale = ContentScale.Fit
         )

@@ -136,13 +136,13 @@ class StickerImeService : InputMethodService() {
         }
         val accepted = editorInfo?.let { EditorInfoCompat.getContentMimeTypes(it) }.orEmpty()
         val canCommit = accepted.any { declared ->
-            ClipDescription.compareMimeTypes(sticker.format.mime, declared) ||
+            ClipDescription.compareMimeTypes(sticker.sent.format.mime, declared) ||
                 ClipDescription.compareMimeTypes("image/*", declared)
         }
         if (canCommit && ic != null && editorInfo != null) {
             val content = InputContentInfoCompat(
                 uri,
-                ClipDescription(sticker.file.name, arrayOf(sticker.format.mime)),
+                ClipDescription(sticker.sent.file.name, arrayOf(sticker.sent.format.mime)),
                 null
             )
             val ok = InputConnectionCompat.commitContent(
@@ -167,7 +167,7 @@ class StickerImeService : InputMethodService() {
         currentInputEditorInfo?.packageName?.let {
             grantUriPermission(it, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val clip = ClipData.newUri(contentResolver, sticker.file.name, uri)
+        val clip = ClipData.newUri(contentResolver, sticker.sent.file.name, uri)
         getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
     }
 
@@ -237,7 +237,7 @@ class StickerImeService : InputMethodService() {
                                     )
                                     scaleType = ImageView.ScaleType.FIT_CENTER
                                     setPadding(dp(6), dp(6), dp(6), dp(6))
-                                    setImageBitmap(StickerStore.thumbnail(sticker.file))
+                                    setImageBitmap(StickerStore.decode(sticker.sent))
                                     setOnClickListener { insertOrCopy(sticker) }
                                     setOnLongClickListener {
                                         copyToClipboard(sticker)
