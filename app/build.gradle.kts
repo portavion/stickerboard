@@ -77,6 +77,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+    testImplementation("junit:junit:4.13.2")
 }
 
 kotlin {

@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +16,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.IntentCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,12 +38,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val resumeTick = mutableIntStateOf(0)
@@ -93,12 +100,45 @@ private fun LibraryScreen(resumeTick: Int) {
     var tick by remember { mutableIntStateOf(0) }
     val stickers = remember(tick, resumeTick) { store.list() }
     val enabled = remember(resumeTick) { imeEnabled(context) }
+    var editor by remember { mutableStateOf<Editor?>(null) }
+    var editJob by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         uris.forEach { store.import(it) }
         tick++
+    }
+
+    val currentEditor = editor
+    if (currentEditor != null) {
+        BackHandler {
+            editJob?.cancel()
+            editor = null
+        }
+        EditorScreen(
+            state = currentEditor,
+            onPick = { look -> editor = (editor as? Editor.Choosing)?.copy(chosen = look) },
+            onSave = {
+                val s = editor as Editor.Choosing
+                if (store.saveLook(s.sticker, s.previews.getValue(s.chosen)) == null) {
+                    toast(context, R.string.save_failed)
+                }
+                editor = null
+                tick++
+            },
+            onRevert = {
+                editor?.let { store.clearLook(it.sticker) }
+                editor = null
+                tick++
+            },
+            onClose = {
+                editJob?.cancel()
+                editor = null
+            },
+        )
+        return
     }
 
     Column(
@@ -177,7 +217,19 @@ private fun LibraryScreen(resumeTick: Int) {
                                             Box(Modifier.weight(1f).fillMaxHeight()) {
                                                 StickerThumb(
                                                     sticker,
-                                                    Modifier.fillMaxSize()
+                                                    Modifier.fillMaxSize().then(
+                                                        if (sticker.editable) {
+                                                            Modifier.clickable {
+                                                                if (editJob?.isActive == true) return@clickable
+                                                                editor = Editor.Segmenting(sticker)
+                                                                editJob = scope.launch {
+                                                                    val next = startEditing(context, sticker)
+                                                                    ensureActive()
+                                                                    editor = next
+                                                                }
+                                                            }
+                                                        } else Modifier
+                                                    )
                                                 )
                                                 IconButton(
                                                     onClick = {

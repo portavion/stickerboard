@@ -7,4 +7,15 @@
     <string name="paste_empty">Nothing to paste</string>
     <string name="paste_not_image">Clipboard isn\'t an image</string>
     <string name="paste_unreadable">Couldn\'t read that image</string>
+    <string name="look_cutout">Cutout</string>
+    <string name="look_sticker">Sticker</string>
+    <string name="look_save">Save</string>
+    <string name="look_revert">Revert</string>
+    <string name="look_close">Close</string>
+    <string name="look_now_sending">Now sending</string>
+    <string name="save_failed">Couldn\'t save that look</string>
+    <string name="look_unreadable">Couldn\'t read that image</string>
+    <string name="look_no_subject">No subject found</string>
+    <string name="look_model_unavailable">Segmentation model isn\'t available</string>
+    <string name="look_crashed">Segmentation failed</string>
 </resources>
