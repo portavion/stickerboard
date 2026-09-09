@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,12 +28,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,8 +48,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -281,67 +285,52 @@ private fun LibraryScreen(resumeTick: Int) {
                                         } else {
                                             val sticker = ranked.item
                                             Box(Modifier.weight(1f).fillMaxHeight()) {
-                                                CompositionLocalProvider(
-                                                    LocalMinimumInteractiveComponentSize provides 32.dp
-                                                ) {
-                                                    StickerThumb(
-                                                        sticker,
-                                                        Modifier.fillMaxSize().then(
-                                                            if (sticker.editable) {
-                                                                Modifier.clickable {
-                                                                    if (editJob?.isActive == true) return@clickable
-                                                                    editor = Editor.Segmenting(sticker)
-                                                                    editJob = scope.launch {
-                                                                        val next = startEditing(context, sticker)
-                                                                        ensureActive()
-                                                                        editor = next
-                                                                    }
+                                                StickerThumb(
+                                                    sticker,
+                                                    Modifier.fillMaxSize().then(
+                                                        if (sticker.editable) {
+                                                            Modifier.clickable {
+                                                                if (editJob?.isActive == true) return@clickable
+                                                                editor = Editor.Segmenting(sticker)
+                                                                editJob = scope.launch {
+                                                                    val next = startEditing(context, sticker)
+                                                                    ensureActive()
+                                                                    editor = next
                                                                 }
-                                                            } else Modifier
-                                                        )
-                                                    )
-                                                    IconButton(
-                                                        onClick = {
-                                                            when (ranked) {
-                                                                is Ranked.Pinned -> ranks.unpin(sticker)
-                                                                is Ranked.Unpinned -> ranks.pin(sticker)
                                                             }
-                                                            tick++
-                                                        },
-                                                        modifier = Modifier.align(Alignment.TopStart)
-                                                    ) {
-                                                        Text(if (ranked is Ranked.Pinned) "★" else "☆")
+                                                        } else Modifier
+                                                    )
+                                                )
+                                                ThumbMark(
+                                                    if (ranked is Ranked.Pinned) "★" else "☆",
+                                                    Alignment.TopStart,
+                                                ) {
+                                                    when (ranked) {
+                                                        is Ranked.Pinned -> ranks.unpin(sticker)
+                                                        is Ranked.Unpinned -> ranks.pin(sticker)
                                                     }
-                                                    IconButton(
-                                                        onClick = {
-                                                            store.delete(sticker)
-                                                            tick++
-                                                        },
-                                                        modifier = Modifier.align(Alignment.TopEnd)
+                                                    tick++
+                                                }
+                                                ThumbMark("×", Alignment.TopEnd) {
+                                                    store.delete(sticker)
+                                                    tick++
+                                                }
+                                                if (ranked is Ranked.Pinned) {
+                                                    ThumbMark(
+                                                        "‹",
+                                                        Alignment.BottomStart,
+                                                        enabled = ranked.canMoveEarlier,
                                                     ) {
-                                                        Text("×")
+                                                        ranks.movePin(sticker, Move.Earlier)
+                                                        tick++
                                                     }
-                                                    if (ranked is Ranked.Pinned) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                ranks.movePin(sticker, Move.Earlier)
-                                                                tick++
-                                                            },
-                                                            enabled = ranked.canMoveEarlier,
-                                                            modifier = Modifier.align(Alignment.BottomStart)
-                                                        ) {
-                                                            Text("‹")
-                                                        }
-                                                        IconButton(
-                                                            onClick = {
-                                                                ranks.movePin(sticker, Move.Later)
-                                                                tick++
-                                                            },
-                                                            enabled = ranked.canMoveLater,
-                                                            modifier = Modifier.align(Alignment.BottomEnd)
-                                                        ) {
-                                                            Text("›")
-                                                        }
+                                                    ThumbMark(
+                                                        "›",
+                                                        Alignment.BottomEnd,
+                                                        enabled = ranked.canMoveLater,
+                                                    ) {
+                                                        ranks.movePin(sticker, Move.Later)
+                                                        tick++
                                                     }
                                                 }
                                             }
@@ -369,6 +358,25 @@ private fun LibraryScreen(resumeTick: Int) {
                 style = MaterialTheme.typography.bodySmall
             )
         }
+    }
+}
+
+@Composable
+private fun BoxScope.ThumbMark(
+    label: String,
+    alignment: Alignment,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+        Text(
+            label,
+            modifier = Modifier
+                .align(alignment)
+                .size(32.dp)
+                .alpha(if (enabled) 1f else 0.38f)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        )
     }
 }
 
