@@ -1,6 +1,5 @@
 package com.portavion.stickerboard
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -107,6 +106,7 @@ private fun LibraryScreen(resumeTick: Int) {
     val stickers = remember(tick, resumeTick) { store.list() }
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }
+    var showPolicy by remember { mutableStateOf(false) }
     var editJob by remember { mutableStateOf<Job?>(null) }
     var zipJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
@@ -186,6 +186,12 @@ private fun LibraryScreen(resumeTick: Int) {
         return
     }
 
+    if (showPolicy) {
+        BackHandler { showPolicy = false }
+        PrivacyScreen(onClose = { showPolicy = false })
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -215,16 +221,6 @@ private fun LibraryScreen(resumeTick: Int) {
                 Text("Switch keyboard")
             }
         }
-        val privacyUrl = stringResource(R.string.privacy_policy_url)
-        TextButton(onClick = {
-            try {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(privacyUrl)))
-            } catch (_: ActivityNotFoundException) {
-                toast(context, R.string.privacy_open_failed)
-            }
-        }) {
-            Text(stringResource(R.string.privacy_policy))
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -252,6 +248,7 @@ private fun LibraryScreen(resumeTick: Int) {
         }
         if (stickers.isEmpty()) {
             Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files, or paste an image.")
+            Spacer(Modifier.weight(1f))
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val cols = maxOf(1, (maxWidth / 88.dp).toInt())
@@ -323,6 +320,12 @@ private fun LibraryScreen(resumeTick: Int) {
                     }
                 }
             }
+        }
+        TextButton(onClick = { showPolicy = true }) {
+            Text(
+                stringResource(R.string.privacy_policy),
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
