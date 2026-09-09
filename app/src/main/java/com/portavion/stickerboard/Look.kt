@@ -128,7 +128,7 @@ sealed interface Look {
         override fun render(cut: Raster): Raster {
             val source = cut.cropToAlpha()
             if (source.width == 1 && source.height == 1 && source.argb[0] == 0) return source
-            val sprite = spriteFrom(source) ?: return Raster.filled(1, 1, 0)
+            val sprite = indexThenMajority(source) ?: return Raster.filled(1, 1, 0)
             return sprite.upsample().cropToAlpha()
         }
     }
@@ -256,8 +256,7 @@ private class Sprite(
     }
 }
 
-// Index source pixels first so a mixed cell keeps one palette color instead of a blend.
-private fun spriteFrom(source: Raster): Sprite? {
+private fun indexThenMajority(source: Raster): Sprite? {
     val cell = Look.PixelArt.cellSize(source.width, source.height)
     val cols = ceilDiv(source.width, cell)
     val rows = ceilDiv(source.height, cell)
