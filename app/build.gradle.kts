@@ -67,6 +67,14 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests.all {
+            if (project.hasProperty("privacy.write")) {
+                it.systemProperty("privacy.write", "1")
+            }
+        }
+    }
 }
 
 dependencies {
