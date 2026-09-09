@@ -75,6 +75,13 @@ class LookTest {
     }
 
     @Test
+    fun pixelArtKeepsEnoughCellsToReadAPhoto() {
+        val cell = Look.PixelArt.cellSize(512, 512)
+        val cellsAcross = (512 + cell - 1) / cell
+        assertTrue(cellsAcross >= 64)
+    }
+
+    @Test
     fun pixelArtCellSizeFollowsCroppedSubject() {
         val cut = Raster.filled(256, 256, 0).withRect(20, 20, 30, 30, 0xFFFF0000.toInt())
         val cropped = cut.cropToAlpha()
