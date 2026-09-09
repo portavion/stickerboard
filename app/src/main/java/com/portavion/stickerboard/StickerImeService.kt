@@ -30,6 +30,7 @@ import kotlin.math.max
 
 class StickerImeService : InputMethodService() {
     private val store by lazy { StickerStore(this) }
+    private val ranks by lazy { RankStore.of(this) }
     private var pages: PageAdapter? = null
     private var pager: ViewPager2? = null
     private var pageLabel: TextView? = null
@@ -112,7 +113,7 @@ class StickerImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        val list = store.list()
+        val list = ranks.arrange(store.list()).map { it.item }
         pages?.replace(list)
         empty?.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         pager?.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
@@ -128,6 +129,13 @@ class StickerImeService : InputMethodService() {
     }
 
     private fun insertOrCopy(sticker: Sticker) {
+        if (commitContent(sticker)) return sent(sticker)
+        copyToClipboard(sticker)
+        Toast.makeText(this, R.string.paste_from_clipboard, Toast.LENGTH_SHORT).show()
+        sent(sticker)
+    }
+
+    private fun commitContent(sticker: Sticker): Boolean {
         val editorInfo = currentInputEditorInfo
         val ic = currentInputConnection
         val uri = store.contentUri(this, sticker)
@@ -139,26 +147,23 @@ class StickerImeService : InputMethodService() {
             ClipDescription.compareMimeTypes(sticker.sent.format.mime, declared) ||
                 ClipDescription.compareMimeTypes("image/*", declared)
         }
-        if (canCommit && ic != null && editorInfo != null) {
-            val content = InputContentInfoCompat(
-                uri,
-                ClipDescription(sticker.sent.file.name, arrayOf(sticker.sent.format.mime)),
-                null
-            )
-            val ok = InputConnectionCompat.commitContent(
-                ic,
-                editorInfo,
-                content,
-                InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
-                null
-            )
-            if (ok) {
-                goBackToPreviousIme()
-                return
-            }
-        }
-        copyToClipboard(sticker)
-        Toast.makeText(this, R.string.paste_from_clipboard, Toast.LENGTH_SHORT).show()
+        if (!canCommit || ic == null || editorInfo == null) return false
+        val content = InputContentInfoCompat(
+            uri,
+            ClipDescription(sticker.sent.file.name, arrayOf(sticker.sent.format.mime)),
+            null
+        )
+        return InputConnectionCompat.commitContent(
+            ic,
+            editorInfo,
+            content,
+            InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
+            null
+        )
+    }
+
+    private fun sent(sticker: Sticker) {
+        ranks.recordSend(sticker)
         goBackToPreviousIme()
     }
 

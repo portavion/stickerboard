@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,16 +28,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,8 +48,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -102,8 +108,9 @@ private fun sharedImageUris(intent: Intent?): List<Uri>? =
 private fun LibraryScreen(resumeTick: Int) {
     val context = LocalContext.current
     val store = remember { StickerStore(context) }
+    val ranks = remember { RankStore.of(context) }
     var tick by remember { mutableIntStateOf(0) }
-    val stickers = remember(tick, resumeTick) { store.list() }
+    val stickers = remember(tick, resumeTick) { ranks.arrange(store.list()) }
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }
     var showPolicy by remember { mutableStateOf(false) }
@@ -272,10 +279,11 @@ private fun LibraryScreen(resumeTick: Int) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     repeat(cols) { c ->
-                                        val sticker = slice.getOrNull(r * cols + c)
-                                        if (sticker == null) {
+                                        val ranked = slice.getOrNull(r * cols + c)
+                                        if (ranked == null) {
                                             Spacer(Modifier.weight(1f).fillMaxHeight())
                                         } else {
+                                            val sticker = ranked.item
                                             Box(Modifier.weight(1f).fillMaxHeight()) {
                                                 StickerThumb(
                                                     sticker,
@@ -293,14 +301,37 @@ private fun LibraryScreen(resumeTick: Int) {
                                                         } else Modifier
                                                     )
                                                 )
-                                                IconButton(
-                                                    onClick = {
-                                                        store.delete(sticker)
-                                                        tick++
-                                                    },
-                                                    modifier = Modifier.align(Alignment.TopEnd)
+                                                ThumbMark(
+                                                    if (ranked is Ranked.Pinned) "★" else "☆",
+                                                    Alignment.TopStart,
                                                 ) {
-                                                    Text("×")
+                                                    when (ranked) {
+                                                        is Ranked.Pinned -> ranks.unpin(sticker)
+                                                        is Ranked.Unpinned -> ranks.pin(sticker)
+                                                    }
+                                                    tick++
+                                                }
+                                                ThumbMark("×", Alignment.TopEnd) {
+                                                    store.delete(sticker)
+                                                    tick++
+                                                }
+                                                if (ranked is Ranked.Pinned) {
+                                                    ThumbMark(
+                                                        "‹",
+                                                        Alignment.BottomStart,
+                                                        enabled = ranked.canMoveEarlier,
+                                                    ) {
+                                                        ranks.movePin(sticker, Move.Earlier)
+                                                        tick++
+                                                    }
+                                                    ThumbMark(
+                                                        "›",
+                                                        Alignment.BottomEnd,
+                                                        enabled = ranked.canMoveLater,
+                                                    ) {
+                                                        ranks.movePin(sticker, Move.Later)
+                                                        tick++
+                                                    }
                                                 }
                                             }
                                         }
@@ -327,6 +358,25 @@ private fun LibraryScreen(resumeTick: Int) {
                 style = MaterialTheme.typography.bodySmall
             )
         }
+    }
+}
+
+@Composable
+private fun BoxScope.ThumbMark(
+    label: String,
+    alignment: Alignment,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+        Text(
+            label,
+            modifier = Modifier
+                .align(alignment)
+                .size(32.dp)
+                .alpha(if (enabled) 1f else 0.38f)
+                .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        )
     }
 }
 
