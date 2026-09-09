@@ -1,5 +1,6 @@
 package com.portavion.stickerboard
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -35,6 +36,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -211,6 +214,16 @@ private fun LibraryScreen(resumeTick: Int) {
             }) {
                 Text("Switch keyboard")
             }
+        }
+        val privacyUrl = stringResource(R.string.privacy_policy_url)
+        TextButton(onClick = {
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(privacyUrl)))
+            } catch (_: ActivityNotFoundException) {
+                toast(context, R.string.privacy_open_failed)
+            }
+        }) {
+            Text(stringResource(R.string.privacy_policy))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {

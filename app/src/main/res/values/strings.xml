@@ -29,4 +29,7 @@
     <string name="export_failed">Couldn\'t write that zip</string>
     <string name="import_not_zip">That isn\'t a zip</string>
     <string name="import_unreadable">Couldn\'t read that zip</string>
+    <string name="privacy_policy_url">https://portavion.github.io/stickerboard/</string>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_open_failed">Couldn\'t open the privacy policy</string>
 </resources>
