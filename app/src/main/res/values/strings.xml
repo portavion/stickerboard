@@ -9,6 +9,7 @@
     <string name="paste_unreadable">Couldn\'t read that image</string>
     <string name="look_cutout">Cutout</string>
     <string name="look_sticker">Sticker</string>
+    <string name="look_pixel_art">Pixel</string>
     <string name="look_save">Save</string>
     <string name="look_revert">Revert</string>
     <string name="look_close">Close</string>

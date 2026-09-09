@@ -200,6 +200,11 @@ fun EditorScreen(
                     selected = state.chosen == Look.DieCut,
                     onClick = { onPick(Look.DieCut) }
                 )
+                LookPickButton(
+                    label = R.string.look_pixel_art,
+                    selected = state.chosen == Look.PixelArt,
+                    onClick = { onPick(Look.PixelArt) }
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
