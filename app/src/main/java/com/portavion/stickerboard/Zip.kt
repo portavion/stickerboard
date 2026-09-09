@@ -9,11 +9,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-/**
- * Write files into a zip. Entry name is each file's path relative to root with '/'
- * separators; entry time is lastModified. Files that vanish between listing and
- * writing are skipped. Returns entries written. Throws IOException from out.
- */
 internal fun zipFiles(root: File, files: List<File>, out: OutputStream): Int {
     var written = 0
     ZipOutputStream(out).apply { setLevel(Deflater.NO_COMPRESSION) }.use { zip ->
@@ -36,12 +31,6 @@ internal fun zipFiles(root: File, files: List<File>, out: OutputStream): Int {
     return written
 }
 
-/**
- * Extract a zip stream into dir. Directory entries are skipped. An entry whose
- * canonical destination is not inside dir is skipped (path traversal). Written files
- * take the entry time as lastModified when it is set. Returns files written.
- * Throws IOException / ZipException from the stream.
- */
 internal fun unzipInto(zip: InputStream, dir: File): Int {
     dir.mkdirs()
     val canonicalDir = dir.canonicalFile
