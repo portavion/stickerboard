@@ -338,7 +338,6 @@ fun PrivacyScreen(onClose: () -> Unit) {
     }
 }
 
-// resolveActivity would require a <queries> block on targetSdk 36.
 internal fun openUrl(context: Context, url: String): Boolean =
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
