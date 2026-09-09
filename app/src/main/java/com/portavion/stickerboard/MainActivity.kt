@@ -33,10 +33,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,8 +104,9 @@ private fun sharedImageUris(intent: Intent?): List<Uri>? =
 private fun LibraryScreen(resumeTick: Int) {
     val context = LocalContext.current
     val store = remember { StickerStore(context) }
+    val ranks = remember { RankStore.of(context) }
     var tick by remember { mutableIntStateOf(0) }
-    val stickers = remember(tick, resumeTick) { store.list() }
+    val stickers = remember(tick, resumeTick) { ranks.arrange(store.list()) }
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }
     var showPolicy by remember { mutableStateOf(false) }
@@ -272,35 +275,74 @@ private fun LibraryScreen(resumeTick: Int) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     repeat(cols) { c ->
-                                        val sticker = slice.getOrNull(r * cols + c)
-                                        if (sticker == null) {
+                                        val ranked = slice.getOrNull(r * cols + c)
+                                        if (ranked == null) {
                                             Spacer(Modifier.weight(1f).fillMaxHeight())
                                         } else {
+                                            val sticker = ranked.item
                                             Box(Modifier.weight(1f).fillMaxHeight()) {
-                                                StickerThumb(
-                                                    sticker,
-                                                    Modifier.fillMaxSize().then(
-                                                        if (sticker.editable) {
-                                                            Modifier.clickable {
-                                                                if (editJob?.isActive == true) return@clickable
-                                                                editor = Editor.Segmenting(sticker)
-                                                                editJob = scope.launch {
-                                                                    val next = startEditing(context, sticker)
-                                                                    ensureActive()
-                                                                    editor = next
-                                                                }
-                                                            }
-                                                        } else Modifier
-                                                    )
-                                                )
-                                                IconButton(
-                                                    onClick = {
-                                                        store.delete(sticker)
-                                                        tick++
-                                                    },
-                                                    modifier = Modifier.align(Alignment.TopEnd)
+                                                CompositionLocalProvider(
+                                                    LocalMinimumInteractiveComponentSize provides 32.dp
                                                 ) {
-                                                    Text("×")
+                                                    StickerThumb(
+                                                        sticker,
+                                                        Modifier.fillMaxSize().then(
+                                                            if (sticker.editable) {
+                                                                Modifier.clickable {
+                                                                    if (editJob?.isActive == true) return@clickable
+                                                                    editor = Editor.Segmenting(sticker)
+                                                                    editJob = scope.launch {
+                                                                        val next = startEditing(context, sticker)
+                                                                        ensureActive()
+                                                                        editor = next
+                                                                    }
+                                                                }
+                                                            } else Modifier
+                                                        )
+                                                    )
+                                                    IconButton(
+                                                        onClick = {
+                                                            when (ranked) {
+                                                                is Ranked.Pinned -> ranks.unpin(sticker)
+                                                                is Ranked.Unpinned -> ranks.pin(sticker)
+                                                            }
+                                                            tick++
+                                                        },
+                                                        modifier = Modifier.align(Alignment.TopStart)
+                                                    ) {
+                                                        Text(if (ranked is Ranked.Pinned) "★" else "☆")
+                                                    }
+                                                    IconButton(
+                                                        onClick = {
+                                                            store.delete(sticker)
+                                                            tick++
+                                                        },
+                                                        modifier = Modifier.align(Alignment.TopEnd)
+                                                    ) {
+                                                        Text("×")
+                                                    }
+                                                    if (ranked is Ranked.Pinned) {
+                                                        IconButton(
+                                                            onClick = {
+                                                                ranks.movePin(sticker, Move.Earlier)
+                                                                tick++
+                                                            },
+                                                            enabled = ranked.canMoveEarlier,
+                                                            modifier = Modifier.align(Alignment.BottomStart)
+                                                        ) {
+                                                            Text("‹")
+                                                        }
+                                                        IconButton(
+                                                            onClick = {
+                                                                ranks.movePin(sticker, Move.Later)
+                                                                tick++
+                                                            },
+                                                            enabled = ranked.canMoveLater,
+                                                            modifier = Modifier.align(Alignment.BottomEnd)
+                                                        ) {
+                                                            Text("›")
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
