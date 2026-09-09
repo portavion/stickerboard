@@ -46,9 +46,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val resumeTick = mutableIntStateOf(0)
@@ -79,7 +82,7 @@ class MainActivity : ComponentActivity() {
     private fun importShared(intent: Intent?) {
         val uris = sharedImageUris(intent) ?: return
         val store = StickerStore(this)
-        uris.forEach { store.import(it) }
+        uris.forEach { store.import(this, it) }
     }
 }
 
@@ -102,13 +105,52 @@ private fun LibraryScreen(resumeTick: Int) {
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }
     var editJob by remember { mutableStateOf<Job?>(null) }
+    var zipJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        uris.forEach { store.import(it) }
+        uris.forEach { store.import(context, it) }
         tick++
+    }
+
+    val exporter = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        zipJob = scope.launch {
+            try {
+                val written = withContext(Dispatchers.IO) { store.export(context, uri) }
+                ensureActive()
+                if (written == null) toast(context, R.string.export_failed)
+                else toast(context, context.resources.getQuantityString(R.plurals.exported, written, written))
+            } finally {
+                zipJob = null
+            }
+        }
+    }
+
+    val importer = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        zipJob = scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { store.restore(context, uri) }
+                ensureActive()
+                when (result) {
+                    is RestoreResult.Done -> {
+                        tick++
+                        toast(context, context.resources.getQuantityString(R.plurals.imported, result.written, result.written))
+                    }
+                    RestoreResult.NotAZip -> toast(context, R.string.import_not_zip)
+                    RestoreResult.Unreadable -> toast(context, R.string.import_unreadable)
+                }
+            } finally {
+                zipJob = null
+            }
+        }
     }
 
     val currentEditor = editor
@@ -184,6 +226,16 @@ private fun LibraryScreen(resumeTick: Int) {
                     PasteResult.Unreadable -> toast(context, R.string.paste_unreadable)
                 }
             }) { Text("Paste") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(
+                onClick = { exporter.launch("stickerboard-${today()}.zip") },
+                enabled = zipJob?.isActive != true
+            ) { Text("Export") }
+            FilledTonalButton(
+                onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) },
+                enabled = zipJob?.isActive != true
+            ) { Text("Import") }
         }
         if (stickers.isEmpty()) {
             Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files, or paste an image.")
@@ -270,3 +322,9 @@ private fun imeEnabled(context: Context): Boolean {
 private fun toast(context: Context, resId: Int) {
     Toast.makeText(context, resId, Toast.LENGTH_SHORT).show()
 }
+
+private fun toast(context: Context, text: CharSequence) {
+    Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+}
+
+private fun today() = LocalDate.now().toString()

@@ -14,6 +14,8 @@ import androidx.core.content.FileProvider
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 
 enum class ImageFormat(val ext: String, val mime: String) {
     PNG("png", "image/png"),
@@ -46,6 +48,27 @@ private fun ByteArray.startsMagic(offset: Int, vararg bytes: Int): Boolean {
     return bytes.indices.all { this[offset + it] == bytes[it].toByte() }
 }
 
+private fun peek(input: InputStream, header: ByteArray): Pair<InputStream, Int>? {
+    val source = if (input.markSupported()) input else BufferedInputStream(input)
+    return try {
+        source.mark(header.size)
+        var filled = 0
+        while (filled < header.size) {
+            val nread = source.read(header, filled, header.size - filled)
+            if (nread <= 0) break
+            filled += nread
+        }
+        source.reset()
+        source to filled
+    } catch (_: IOException) {
+        null
+    }
+}
+
+private fun isZipMagic(header: ByteArray): Boolean =
+    header.startsMagic(0, 0x50, 0x4B, 0x03, 0x04) ||
+        header.startsMagic(0, 0x50, 0x4B, 0x05, 0x06)
+
 data class ImageFile(val file: File, val format: ImageFormat)
 
 data class Sticker(val original: ImageFile, val look: ImageFile?) {
@@ -60,12 +83,20 @@ sealed interface ImportResult {
     data object Unreadable : ImportResult
 }
 
-class StickerStore(private val context: Context) {
-    private val dir: File
-        get() = File(context.filesDir, "stickers").also { it.mkdirs() }
+sealed interface RestoreResult {
+    data class Done(val results: List<ImportResult>) : RestoreResult {
+        val written: Int get() = results.count { it is ImportResult.Saved }
+    }
+    data object NotAZip : RestoreResult
+    data object Unreadable : RestoreResult
+}
 
-    private val looksDir: File
-        get() = File(dir, "looks").also { it.mkdirs() }
+class StickerStore(private val root: File, private val scratch: File) {
+
+    constructor(context: Context) : this(File(context.filesDir, "stickers"), context.cacheDir)
+
+    private val dir: File get() = root.also { it.mkdirs() }
+    private val looksDir: File get() = File(dir, "looks").also { it.mkdirs() }
 
     fun list(): List<Sticker> =
         dir.listFiles()
@@ -81,7 +112,7 @@ class StickerStore(private val context: Context) {
             }
             ?: emptyList()
 
-    fun import(uri: Uri): ImportResult {
+    fun import(context: Context, uri: Uri): ImportResult {
         val raw = try {
             context.contentResolver.openInputStream(uri)
         } catch (_: SecurityException) {
@@ -90,65 +121,21 @@ class StickerStore(private val context: Context) {
             return ImportResult.Unreadable
         } ?: return ImportResult.Unreadable
 
-        return BufferedInputStream(raw).use { input ->
-            input.mark(12)
-            val header = ByteArray(12)
-            var filled = 0
-            try {
-                while (filled < header.size) {
-                    val nread = input.read(header, filled, header.size - filled)
-                    if (nread <= 0) break
-                    filled += nread
-                }
-            } catch (_: IOException) {
-                return@use ImportResult.Unreadable
-            }
-            if (filled <= 0) return@use ImportResult.NotAnImage
-            val format = ImageFormat.sniff(header.copyOf(filled))
-                ?: return@use ImportResult.NotAnImage
-            try {
-                input.reset()
-            } catch (_: IOException) {
-                return@use ImportResult.Unreadable
-            }
-            val dest = File(dir, "${System.currentTimeMillis()}-$n.${format.ext}")
-            val tmp = File(dir, "${dest.name}.tmp")
-            try {
-                tmp.outputStream().use { input.copyTo(it) }
-                if (!tmp.renameTo(dest)) {
-                    tmp.delete()
-                    dest.delete()
-                    return@use ImportResult.Unreadable
-                }
-                ImportResult.Saved(Sticker(ImageFile(dest, format), look = null))
-            } catch (_: IOException) {
-                tmp.delete()
-                dest.delete()
-                ImportResult.Unreadable
-            }
-        }
+        return raw.use { import(it) }
     }
 
-    fun saveLook(sticker: Sticker, pixels: Bitmap): Sticker? {
-        if (!sticker.original.file.isFile) return null
-        val dest = File(looksDir, "${sticker.stem}.png")
-        val tmp = File(looksDir, "${dest.name}.tmp")
-        return try {
-            tmp.outputStream().use { out ->
-                if (!pixels.compress(Bitmap.CompressFormat.PNG, 100, out)) {
-                    throw IOException("compress")
-                }
-            }
-            if (!tmp.renameTo(dest)) {
-                tmp.delete()
-                return null
-            }
-            sweepTmp(sticker.stem)
-            Sticker(sticker.original, ImageFile(dest, ImageFormat.PNG))
-        } catch (_: IOException) {
-            tmp.delete()
-            null
+    internal fun import(input: InputStream): ImportResult = writeOriginal(input, stem = null)
+
+    fun saveLook(sticker: Sticker, pixels: Bitmap): Sticker? =
+        writeLook(sticker) { out ->
+            if (!pixels.compress(Bitmap.CompressFormat.PNG, 100, out)) throw IOException("compress")
         }
+
+    internal fun saveLook(sticker: Sticker, png: InputStream): Sticker? {
+        val header = ByteArray(12)
+        val (input, filled) = peek(png, header) ?: return null
+        if (ImageFormat.sniff(header.copyOf(filled)) != ImageFormat.PNG) return null
+        return writeLook(sticker) { input.copyTo(it) }
     }
 
     fun clearLook(sticker: Sticker): Sticker {
@@ -162,8 +149,146 @@ class StickerStore(private val context: Context) {
         sweepTmp(sticker.stem)
     }
 
-    fun contentUri(sticker: Sticker): Uri =
+    fun contentUri(context: Context, sticker: Sticker): Uri =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", sticker.sent.file)
+
+    internal fun export(out: OutputStream): Int {
+        val stickers = list()
+        zipFiles(root, stickers.flatMap { listOfNotNull(it.original.file, it.look?.file) }, out)
+        return stickers.size
+    }
+
+    fun export(context: Context, uri: Uri): Int? =
+        try {
+            context.contentResolver.openOutputStream(uri, "wt")?.use { export(it) }
+        } catch (_: IOException) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
+
+    internal fun restore(zip: InputStream): RestoreResult {
+        val header = ByteArray(4)
+        val (input, filled) = peek(zip, header) ?: return RestoreResult.Unreadable
+        // ZipInputStream treats a non-zip as an empty archive instead of throwing.
+        if (filled < 4 || !isZipMagic(header)) return RestoreResult.NotAZip
+
+        val staging = File(scratch, "restore-${System.currentTimeMillis()}")
+        return try {
+            unzipInto(input, staging)
+            RestoreResult.Done(absorb(StickerStore(staging, scratch)))
+        } catch (_: IOException) {
+            RestoreResult.Unreadable
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    fun restore(context: Context, uri: Uri): RestoreResult {
+        val raw = try {
+            context.contentResolver.openInputStream(uri)
+        } catch (_: SecurityException) {
+            return RestoreResult.Unreadable
+        } catch (_: IOException) {
+            return RestoreResult.Unreadable
+        } ?: return RestoreResult.Unreadable
+        return try {
+            raw.use { restore(it) }
+        } catch (_: IOException) {
+            RestoreResult.Unreadable
+        }
+    }
+
+    internal fun absorb(other: StickerStore): List<ImportResult> {
+        val taken = stemsOnDisk()
+        return other.list().asReversed().map { s ->
+            val stem = if (s.stem in taken || !free(s.stem)) freshStem(taken) else s.stem
+            taken += stem
+            adopt(s, stem)
+        }
+    }
+
+    private fun adopt(source: Sticker, stem: String): ImportResult {
+        val r = source.original.file.inputStream().use { writeOriginal(it, stem) }
+        if (r !is ImportResult.Saved) return r
+        r.sticker.original.file.setLastModified(source.original.file.lastModified())
+        val look = source.look?.let { l ->
+            l.file.inputStream().use { saveLook(r.sticker, it) }?.also { saved ->
+                saved.look?.file?.setLastModified(l.file.lastModified())
+            }
+        }
+        return ImportResult.Saved(look ?: r.sticker)
+    }
+
+    private fun stemsOnDisk(): MutableSet<String> {
+        val stems = mutableSetOf<String>()
+        dir.listFiles()?.forEach { if (it.isFile) stems += it.nameWithoutExtension }
+        looksDir.listFiles()?.forEach { if (it.isFile) stems += it.nameWithoutExtension }
+        return stems
+    }
+
+    private fun freshStem(taken: Set<String>): String {
+        var stem: String
+        do {
+            stem = "${System.currentTimeMillis()}-$n"
+        } while (stem in taken || !free(stem))
+        return stem
+    }
+
+    private fun writeOriginal(input: InputStream, stem: String?): ImportResult {
+        val header = ByteArray(12)
+        val (peeked, filled) = peek(input, header) ?: return ImportResult.Unreadable
+        if (filled <= 0) return ImportResult.NotAnImage
+        val format = ImageFormat.sniff(header.copyOf(filled))
+            ?: return ImportResult.NotAnImage
+        val chosen = stem ?: run {
+            var s: String
+            do {
+                s = "${System.currentTimeMillis()}-$n"
+            } while (!free(s))
+            s
+        }
+        val dest = File(dir, "$chosen.${format.ext}")
+        val tmp = File(dir, "${dest.name}.tmp")
+        return try {
+            tmp.outputStream().use { peeked.copyTo(it) }
+            if (!tmp.renameTo(dest)) {
+                tmp.delete()
+                dest.delete()
+                return ImportResult.Unreadable
+            }
+            ImportResult.Saved(Sticker(ImageFile(dest, format), look = null))
+        } catch (_: IOException) {
+            tmp.delete()
+            dest.delete()
+            ImportResult.Unreadable
+        }
+    }
+
+    private fun writeLook(sticker: Sticker, write: (OutputStream) -> Unit): Sticker? {
+        if (!sticker.original.file.isFile) return null
+        val dest = File(looksDir, "${sticker.stem}.png")
+        val tmp = File(looksDir, "${dest.name}.tmp")
+        return try {
+            tmp.outputStream().use { write(it) }
+            if (!tmp.renameTo(dest)) {
+                tmp.delete()
+                return null
+            }
+            sweepTmp(sticker.stem)
+            Sticker(sticker.original, ImageFile(dest, ImageFormat.PNG))
+        } catch (_: IOException) {
+            tmp.delete()
+            null
+        }
+    }
+
+    private fun free(stem: String): Boolean =
+        !File(dir, "$stem.png").exists() &&
+            !File(dir, "$stem.webp").exists() &&
+            !File(dir, "$stem.gif").exists() &&
+            !File(dir, "$stem.jpg").exists() &&
+            !File(looksDir, "$stem.png").exists()
 
     private fun sweepTmp(stem: String) {
         sweepTmpIn(dir, stem)

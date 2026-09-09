@@ -34,3 +34,10 @@ Share `app/build/outputs/apk/release/app-release.apk`. Recipients who already ha
 2. Enable the stickerboard keyboard in system settings.
 3. In a chat, long-press Gboard’s spacebar and pick stickerboard.
 4. Tap a sticker to insert. Long-press copies it for Gboard’s clipboard.
+
+## Backup
+
+Export writes a zip you can unzip by hand: every sticker at the root under its
+own filename, and `looks/{name}.png` for each saved look. Import reads such a
+zip back. Nothing in your library is overwritten; a sticker whose name is
+already taken is written under a new name, and its look moves with it.

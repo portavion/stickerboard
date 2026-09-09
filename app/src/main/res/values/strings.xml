@@ -18,4 +18,15 @@
     <string name="look_no_subject">No subject found</string>
     <string name="look_model_unavailable">Segmentation model isn\'t available</string>
     <string name="look_crashed">Segmentation failed</string>
+    <plurals name="exported">
+        <item quantity="one">Exported %d sticker</item>
+        <item quantity="other">Exported %d stickers</item>
+    </plurals>
+    <plurals name="imported">
+        <item quantity="one">Imported %d sticker</item>
+        <item quantity="other">Imported %d stickers</item>
+    </plurals>
+    <string name="export_failed">Couldn\'t write that zip</string>
+    <string name="import_not_zip">That isn\'t a zip</string>
+    <string name="import_unreadable">Couldn\'t read that zip</string>
 </resources>

@@ -23,7 +23,7 @@ fun pasteStickers(context: Context, store: StickerStore): PasteResult {
     var saved = 0
     var unreadable = false
     for (uri in uris) {
-        when (store.import(uri)) {
+        when (store.import(context, uri)) {
             is ImportResult.Saved -> saved++
             ImportResult.Unreadable -> unreadable = true
             ImportResult.NotAnImage -> Unit
