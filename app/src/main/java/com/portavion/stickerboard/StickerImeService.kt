@@ -130,7 +130,7 @@ class StickerImeService : InputMethodService() {
     private fun insertOrCopy(sticker: Sticker) {
         val editorInfo = currentInputEditorInfo
         val ic = currentInputConnection
-        val uri = store.contentUri(sticker)
+        val uri = store.contentUri(this, sticker)
         editorInfo?.packageName?.let {
             grantUriPermission(it, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -163,7 +163,7 @@ class StickerImeService : InputMethodService() {
     }
 
     private fun copyToClipboard(sticker: Sticker) {
-        val uri = store.contentUri(sticker)
+        val uri = store.contentUri(this, sticker)
         currentInputEditorInfo?.packageName?.let {
             grantUriPermission(it, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
