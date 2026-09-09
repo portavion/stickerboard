@@ -226,6 +226,8 @@ private fun LibraryScreen(resumeTick: Int) {
                     PasteResult.Unreadable -> toast(context, R.string.paste_unreadable)
                 }
             }) { Text("Paste") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(
                 onClick = { exporter.launch("stickerboard-${today()}.zip") },
                 enabled = zipJob?.isActive != true
