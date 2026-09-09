@@ -35,6 +35,8 @@ Share `app/build/outputs/apk/release/app-release.apk`. Recipients who already ha
 3. In a chat, long-press Gboard’s spacebar and pick stickerboard.
 4. Tap a sticker to insert. Long-press copies it for Gboard’s clipboard.
 
+The privacy policy is at https://portavion.github.io/stickerboard/.
+
 ## Backup
 
 Export writes a zip you can unzip by hand: every sticker at the root under its
