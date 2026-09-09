@@ -35,7 +35,21 @@ Share `app/build/outputs/apk/release/app-release.apk`. Recipients who already ha
 3. In a chat, long-press Gboard’s spacebar and pick stickerboard.
 4. Tap a sticker to insert. Long-press copies it for Gboard’s clipboard.
 
-The privacy policy is at https://portavion.github.io/stickerboard/.
+## Privacy
+
+The library screen has a Privacy policy row that opens the notice in the app. The public copy is https://portavion.github.io/stickerboard/privacy/.
+
+To change the notice, edit `Privacy.kt`, then regenerate the committed files:
+
+```sh
+./gradlew :app:testDebugUnitTest -Pprivacy.write
+```
+
+After merge, publish with:
+
+```sh
+bash scripts/publish-privacy.sh
+```
 
 ## Backup
 
