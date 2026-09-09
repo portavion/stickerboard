@@ -233,7 +233,7 @@ private fun LibraryScreen(resumeTick: Int) {
                 enabled = zipJob?.isActive != true
             ) { Text("Export") }
             FilledTonalButton(
-                onClick = { importer.launch(arrayOf("application/zip")) },
+                onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream")) },
                 enabled = zipJob?.isActive != true
             ) { Text("Import") }
         }
