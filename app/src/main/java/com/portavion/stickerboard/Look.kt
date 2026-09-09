@@ -118,7 +118,7 @@ sealed interface Look {
     }
 
     data object PixelArt : Look {
-        internal const val LONG_CELLS = 32
+        internal const val LONG_CELLS = 64
         internal const val PALETTE_SIZE = 16
         internal const val ALPHA_OPAQUE = 128
 
