@@ -29,6 +29,9 @@
     <string name="export_failed">Couldn\'t write that zip</string>
     <string name="import_not_zip">That isn\'t a zip</string>
     <string name="import_unreadable">Couldn\'t read that zip</string>
+    <string name="shelf_favourites">Favourites</string>
+    <string name="shelf_recents">Recents</string>
+    <string name="ime_no_favourites">No favourites yet</string>
     <string name="privacy_policy">Privacy policy</string>
     <string name="privacy_web_copy">Open web copy</string>
     <string name="privacy_close">Close</string>

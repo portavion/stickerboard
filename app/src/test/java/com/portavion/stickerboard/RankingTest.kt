@@ -7,56 +7,79 @@ import org.junit.Test
 
 class RankingTest {
     @Test
-    fun arrangeMergesPinsThenRecentsThenIncomingRest() {
+    fun favouritesAreLivePinsInPinOrderWithMoveFlags() {
         assertEquals(
-            listOf("A", "B", "C", "D", "E"),
-            Ranking.of(listOf("A", "B"), listOf("C", "A", "D"))
-                .arrange(listOf("C", "E", "A", "D", "B")) { it }
-                .map { it.item },
+            listOf(
+                Ranked.Favourite("A", canMoveEarlier = false, canMoveLater = true),
+                Ranked.Favourite("B", canMoveEarlier = true, canMoveLater = false),
+            ),
+            Ranking.of(listOf("A", "B"), emptyList())
+                .shelves(listOf("C", "E", "A", "D", "B")) { it }
+                .favourites,
         )
     }
 
     @Test
-    fun restKeepsIncomingOrder() {
+    fun loneFavouriteKeepsDimmedArrows() {
         assertEquals(
-            listOf("C", "E", "A"),
-            Ranking.of(emptyList(), emptyList())
-                .arrange(listOf("C", "E", "A")) { it }
-                .map { it.item },
+            listOf(Ranked.Favourite("A", canMoveEarlier = false, canMoveLater = false)),
+            Ranking.of(listOf("A"), emptyList()).shelves(listOf("A")) { it }.favourites,
         )
     }
 
     @Test
-    fun missingShelfStemsDoNotAppearAndSizeMatchesItems() {
-        val items = listOf("A", "B")
-        val out = Ranking.of(listOf("A", "Z"), listOf("Y", "B")).arrange(items) { it }
-        assertEquals(listOf("A", "B"), out.map { it.item })
-        assertEquals(items.size, out.size)
+    fun recentsIsLruThenLeftoverAndIncludesPinned() {
+        val recents = Ranking.of(listOf("A"), emptyList())
+            .withSend("C")
+            .withSend("A")
+            .shelves(listOf("C", "E", "A", "D", "B")) { it }
+            .recents
+        assertEquals(
+            listOf(
+                Ranked.Recent("A", pinned = true),
+                Ranked.Recent("C", pinned = false),
+                Ranked.Recent("E", pinned = false),
+                Ranked.Recent("D", pinned = false),
+                Ranked.Recent("B", pinned = false),
+            ),
+            recents,
+        )
     }
 
     @Test
-    fun retainingDropsMissingStems() {
-        val kept = Ranking.of(listOf("A", "Z"), listOf("B", "Y")).retaining(setOf("A", "B"))
-        assertEquals(listOf("A"), kept.pins)
-        assertEquals(listOf("B"), kept.recents)
+    fun recentsHasEveryItemExactlyOnce() {
+        val items = listOf("C", "E", "A", "D", "B")
+        val shelves = Ranking.of(listOf("A"), listOf("C")).shelves(items) { it }
+        assertEquals(items.sorted(), shelves.recents.map { it.item }.sorted())
+        assertEquals(items.size, shelves.recents.distinctBy { it.item }.size)
+        assertFalse(shelves.libraryEmpty)
+        assertTrue(Ranking.of(emptyList(), emptyList()).shelves(emptyList<String>()) { it }.libraryEmpty)
+        assertTrue(Shelves.empty<String>().libraryEmpty)
     }
 
     @Test
-    fun withSendMovesToFrontDedupesAndCapsAt24() {
-        val once = Ranking.of(emptyList(), listOf("B", "A")).withSend("A")
-        assertEquals(listOf("A", "B"), once.recents)
+    fun deadPinsAndRecentsDoNotConjureSlots() {
+        val shelves = Ranking.of(listOf("A", "Z"), listOf("Y", "B")).shelves(listOf("A", "B")) { it }
+        assertEquals(listOf(Ranked.Favourite("A", canMoveEarlier = false, canMoveLater = false)), shelves.favourites)
+        assertEquals(
+            listOf(Ranked.Recent("B", pinned = false), Ranked.Recent("A", pinned = true)),
+            shelves.recents,
+        )
+    }
 
+    @Test
+    fun withSendOfPinnedStemMovesItToFront() {
+        val sent = Ranking.of(listOf("A"), listOf("B")).withSend("A")
+        assertEquals(listOf("A"), sent.pins)
+        assertEquals(listOf("A", "B"), sent.recents)
+    }
+
+    @Test
+    fun withSendHasNoCap() {
         val filled = (1..25).fold(Ranking.of(emptyList(), emptyList())) { acc, n ->
             acc.withSend("s$n")
         }
-        assertEquals((25 downTo 2).map { "s$it" }, filled.recents)
-        assertEquals(Ranking.RECENTS_MAX, filled.recents.size)
-    }
-
-    @Test
-    fun withSendOfPinnedStemIsNoOp() {
-        val pinned = Ranking.of(listOf("A"), listOf("B"))
-        assertEquals(pinned, pinned.withSend("A"))
+        assertEquals((25 downTo 1).map { "s$it" }, filled.recents)
     }
 
     @Test
@@ -64,10 +87,19 @@ class RankingTest {
         val pinned = Ranking.of(emptyList(), listOf("A", "B")).withPin("A")
         assertEquals(listOf("A"), pinned.pins)
         assertEquals(listOf("A", "B"), pinned.recents)
+        val unpinned = pinned.withoutPin("A")
+        assertEquals(listOf("A", "B"), unpinned.recents)
         assertEquals(
             listOf("A", "B", "C"),
-            pinned.withoutPin("A").arrange(listOf("C", "B", "A")) { it }.map { it.item },
+            unpinned.shelves(listOf("C", "B", "A")) { it }.recents.map { it.item },
         )
+    }
+
+    @Test
+    fun retainingDropsMissingStems() {
+        val kept = Ranking.of(listOf("A", "Z"), listOf("B", "Y")).retaining(setOf("A", "B"))
+        assertEquals(listOf("A"), kept.pins)
+        assertEquals(listOf("B"), kept.recents)
     }
 
     @Test
@@ -90,27 +122,6 @@ class RankingTest {
             pins.withPinMoved("A", Move.Later),
         )
         assertEquals(pins, pins.withPinMoved("C", Move.Earlier))
-    }
-
-    @Test
-    fun pinFlagsMatchBandEndsAndUnpinnedHasNone() {
-        val three = Ranking.of(listOf("A", "B", "C"), emptyList())
-            .arrange(listOf("A", "B", "C", "D")) { it }
-        val first = three[0] as Ranked.Pinned
-        val mid = three[1] as Ranked.Pinned
-        val last = three[2] as Ranked.Pinned
-        assertFalse(first.canMoveEarlier)
-        assertTrue(first.canMoveLater)
-        assertTrue(mid.canMoveEarlier)
-        assertTrue(mid.canMoveLater)
-        assertTrue(last.canMoveEarlier)
-        assertFalse(last.canMoveLater)
-        assertTrue(three[3] is Ranked.Unpinned)
-
-        val single = Ranking.of(listOf("A"), emptyList()).arrange(listOf("A")) { it }
-        val only = single[0] as Ranked.Pinned
-        assertFalse(only.canMoveEarlier)
-        assertFalse(only.canMoveLater)
     }
 
     @Test

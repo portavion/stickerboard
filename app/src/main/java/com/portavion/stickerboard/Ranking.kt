@@ -2,14 +2,41 @@ package com.portavion.stickerboard
 
 enum class Move { Earlier, Later }
 
-sealed interface Ranked<T> {
+enum class Shelf { Favourites, Recents }
+
+sealed interface Ranked<T : Any> {
     val item: T
-    data class Pinned<T>(
+    val pinned: Boolean
+
+    data class Favourite<T : Any>(
         override val item: T,
         val canMoveEarlier: Boolean,
         val canMoveLater: Boolean,
+    ) : Ranked<T> {
+        override val pinned: Boolean get() = true
+    }
+
+    data class Recent<T : Any>(
+        override val item: T,
+        override val pinned: Boolean,
     ) : Ranked<T>
-    data class Unpinned<T>(override val item: T) : Ranked<T>
+}
+
+@ConsistentCopyVisibility
+data class Shelves<T : Any> internal constructor(
+    val favourites: List<Ranked.Favourite<T>>,
+    val recents: List<Ranked.Recent<T>>,
+) {
+    operator fun get(shelf: Shelf): List<Ranked<T>> = when (shelf) {
+        Shelf.Favourites -> favourites
+        Shelf.Recents -> recents
+    }
+
+    val libraryEmpty: Boolean get() = recents.isEmpty()
+
+    companion object {
+        fun <T : Any> empty(): Shelves<T> = Shelves(emptyList(), emptyList())
+    }
 }
 
 class Ranking private constructor(
@@ -36,31 +63,26 @@ class Ranking private constructor(
     }
 
     fun withSend(stem: String): Ranking =
-        if (stem in pins) this
-        else of(pins, listOf(stem) + recents.filter { it != stem })
+        of(pins, listOf(stem) + recents.filter { it != stem })
 
     fun retaining(live: Set<String>): Ranking =
         of(pins.filter { it in live }, recents.filter { it in live })
 
-    fun <T> arrange(items: List<T>, stem: (T) -> String): List<Ranked<T>> {
+    fun <T : Any> shelves(items: List<T>, stem: (T) -> String): Shelves<T> {
         val index = items.associateBy(stem)
         val pinItems = pins.mapNotNull { index[it] }
-        val pinnedStems = pinItems.map(stem).toSet()
-        val recentItems = recents.mapNotNull { s ->
-            if (s in pinnedStems) null else index[s]
-        }
-        val placed = pinnedStems + recentItems.map(stem)
-        val rest = items.filter { stem(it) !in placed }
         val lastPin = pinItems.lastIndex
-        val rankedPins: List<Ranked<T>> = pinItems.mapIndexed { i, item ->
-            Ranked.Pinned(
-                item = item,
-                canMoveEarlier = i > 0,
-                canMoveLater = i < lastPin,
-            )
+        val favourites = pinItems.mapIndexed { i, item ->
+            Ranked.Favourite(item, i > 0, i < lastPin)
         }
-        val rankedRest: List<Ranked<T>> = (recentItems + rest).map { Ranked.Unpinned(it) }
-        return rankedPins + rankedRest
+        val pinSet = pins.toSet()
+        val recentItems = recents.mapNotNull { index[it] }
+        val recentStems = recentItems.map(stem).toSet()
+        val rest = items.filter { stem(it) !in recentStems }
+        val recentsOut = (recentItems + rest).map { item ->
+            Ranked.Recent(item, stem(item) in pinSet)
+        }
+        return Shelves(favourites, recentsOut)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -72,10 +94,8 @@ class Ranking private constructor(
     override fun hashCode(): Int = 31 * pins.hashCode() + recents.hashCode()
 
     companion object {
-        const val RECENTS_MAX = 24
-
         fun of(pins: List<String>, recents: List<String>): Ranking =
-            Ranking(clean(pins), clean(recents).take(RECENTS_MAX))
+            Ranking(clean(pins), clean(recents))
 
         private fun clean(stems: List<String>): List<String> =
             stems.filter { it.isNotBlank() && STEM_SEP !in it }.distinct()
