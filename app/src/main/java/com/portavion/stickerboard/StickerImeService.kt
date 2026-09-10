@@ -14,6 +14,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -35,14 +36,10 @@ class StickerImeService : InputMethodService() {
     private var pager: ViewPager2? = null
     private var pageLabel: TextView? = null
     private var empty: TextView? = null
-    private var favTab: Button? = null
-    private var recentsTab: Button? = null
+    private val tabs = mutableMapOf<Shelf, ImageButton>()
     private var shelves: Shelves<Sticker> = Shelves.empty()
     private var shelf: Shelf = Shelf.Recents
-    private val pageOf = mutableMapOf(
-        Shelf.Favourites to 0,
-        Shelf.Recents to 0,
-    )
+    private val pageOf = Shelf.entries.associateWith { 0 }.toMutableMap()
 
     override fun onEvaluateFullscreenMode() = false
 
@@ -63,13 +60,14 @@ class StickerImeService : InputMethodService() {
                 setOnClickListener { goBackToPreviousIme() }
             }
         )
-        val tabs = LinearLayout(this).apply {
+        val tabRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        favTab = tabButton(Shelf.Favourites).also { tabs.addView(it) }
-        recentsTab = tabButton(Shelf.Recents).also { tabs.addView(it) }
-        bar.addView(tabs)
+        Shelf.entries.forEach { s ->
+            tabButton(s).also { tabs[s] = it; tabRow.addView(it) }
+        }
+        bar.addView(tabRow)
         pageLabel = TextView(this).apply {
             setTextColor(0xFFAEAEB2.toInt())
             gravity = Gravity.END
@@ -127,9 +125,13 @@ class StickerImeService : InputMethodService() {
         show(shelf)
     }
 
-    private fun tabButton(target: Shelf) = Button(this).apply {
-        text = getString(shelfLabel(target))
-        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+    private fun tabButton(target: Shelf) = ImageButton(this).apply {
+        setImageResource(shelfIcon(target))
+        contentDescription = getString(shelfLabel(target))
+        setColorFilter(Color.WHITE)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        setBackgroundColor(Color.TRANSPARENT)
+        layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f)
         setOnClickListener {
             if (shelf == target) return@setOnClickListener
             pageOf[shelf] = pager?.currentItem ?: 0
@@ -139,15 +141,18 @@ class StickerImeService : InputMethodService() {
 
     private fun show(next: Shelf) {
         shelf = next
-        markTab(favTab, next == Shelf.Favourites)
-        markTab(recentsTab, next == Shelf.Recents)
+        Shelf.entries.forEach { markTab(tabs[it], next == it) }
         val items = shelves[next].map { it.item }
         pages?.replace(items)
         val emptyNow = items.isEmpty()
-        empty?.text = if (shelves.libraryEmpty) {
-            "Add stickers in the stickerboard app"
-        } else {
-            getString(R.string.ime_no_favourites)
+        empty?.text = when (next) {
+            Shelf.Favourites ->
+                if (shelves.libraryEmpty) "Add stickers in the stickerboard app"
+                else getString(R.string.ime_no_favourites)
+            Shelf.Recents ->
+                if (shelves.libraryEmpty) "Add stickers in the stickerboard app"
+                else getString(R.string.ime_no_recents)
+            Shelf.Library -> "Add stickers in the stickerboard app"
         }
         empty?.visibility = if (emptyNow) View.VISIBLE else View.GONE
         pager?.visibility = if (emptyNow) View.GONE else View.VISIBLE
@@ -220,7 +225,7 @@ class StickerImeService : InputMethodService() {
         }
     }
 
-    private fun markTab(button: Button?, on: Boolean) {
+    private fun markTab(button: ImageButton?, on: Boolean) {
         button?.isSelected = on
         button?.alpha = if (on) 1f else 0.45f
     }
@@ -230,6 +235,13 @@ class StickerImeService : InputMethodService() {
     private fun shelfLabel(shelf: Shelf) = when (shelf) {
         Shelf.Favourites -> R.string.shelf_favourites
         Shelf.Recents -> R.string.shelf_recents
+        Shelf.Library -> R.string.shelf_library
+    }
+
+    private fun shelfIcon(shelf: Shelf) = when (shelf) {
+        Shelf.Favourites -> R.drawable.ic_shelf_favourites
+        Shelf.Recents -> R.drawable.ic_shelf_recents
+        Shelf.Library -> R.drawable.ic_shelf_library
     }
 
     private inner class PageAdapter : RecyclerView.Adapter<PageAdapter.Holder>() {

@@ -2,7 +2,7 @@ package com.portavion.stickerboard
 
 enum class Move { Earlier, Later }
 
-enum class Shelf { Favourites, Recents }
+enum class Shelf { Favourites, Recents, Library }
 
 sealed interface Ranked<T : Any> {
     val item: T
@@ -26,16 +26,18 @@ sealed interface Ranked<T : Any> {
 data class Shelves<T : Any> internal constructor(
     val favourites: List<Ranked.Favourite<T>>,
     val recents: List<Ranked.Recent<T>>,
+    val library: List<Ranked.Recent<T>>,
 ) {
     operator fun get(shelf: Shelf): List<Ranked<T>> = when (shelf) {
         Shelf.Favourites -> favourites
         Shelf.Recents -> recents
+        Shelf.Library -> library
     }
 
-    val libraryEmpty: Boolean get() = recents.isEmpty()
+    val libraryEmpty: Boolean get() = library.isEmpty()
 
     companion object {
-        fun <T : Any> empty(): Shelves<T> = Shelves(emptyList(), emptyList())
+        fun <T : Any> empty(): Shelves<T> = Shelves(emptyList(), emptyList(), emptyList())
     }
 }
 
@@ -76,13 +78,13 @@ class Ranking private constructor(
             Ranked.Favourite(item, i > 0, i < lastPin)
         }
         val pinSet = pins.toSet()
-        val recentItems = recents.mapNotNull { index[it] }
-        val recentStems = recentItems.map(stem).toSet()
-        val rest = items.filter { stem(it) !in recentStems }
-        val recentsOut = (recentItems + rest).map { item ->
+        val recentsOut = recents.mapNotNull { index[it] }.map { item ->
             Ranked.Recent(item, stem(item) in pinSet)
         }
-        return Shelves(favourites, recentsOut)
+        val library = items.map { item ->
+            Ranked.Recent(item, stem(item) in pinSet)
+        }
+        return Shelves(favourites, recentsOut, library)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -94,8 +96,10 @@ class Ranking private constructor(
     override fun hashCode(): Int = 31 * pins.hashCode() + recents.hashCode()
 
     companion object {
+        const val RECENTS_MAX = 24
+
         fun of(pins: List<String>, recents: List<String>): Ranking =
-            Ranking(clean(pins), clean(recents))
+            Ranking(clean(pins), clean(recents).take(RECENTS_MAX))
 
         private fun clean(stems: List<String>): List<String> =
             stems.filter { it.isNotBlank() && STEM_SEP !in it }.distinct()

@@ -28,7 +28,7 @@ class RankingTest {
     }
 
     @Test
-    fun recentsIsLruThenLeftoverAndIncludesPinned() {
+    fun recentsIsLruOnlyAndIncludesPinned() {
         val recents = Ranking.of(listOf("A"), emptyList())
             .withSend("C")
             .withSend("A")
@@ -38,20 +38,25 @@ class RankingTest {
             listOf(
                 Ranked.Recent("A", pinned = true),
                 Ranked.Recent("C", pinned = false),
-                Ranked.Recent("E", pinned = false),
-                Ranked.Recent("D", pinned = false),
-                Ranked.Recent("B", pinned = false),
             ),
             recents,
         )
     }
 
     @Test
-    fun recentsHasEveryItemExactlyOnce() {
+    fun libraryIsIncomingOrderAndIncludesEveryItem() {
         val items = listOf("C", "E", "A", "D", "B")
         val shelves = Ranking.of(listOf("A"), listOf("C")).shelves(items) { it }
-        assertEquals(items.sorted(), shelves.recents.map { it.item }.sorted())
-        assertEquals(items.size, shelves.recents.distinctBy { it.item }.size)
+        assertEquals(
+            listOf(
+                Ranked.Recent("C", pinned = false),
+                Ranked.Recent("E", pinned = false),
+                Ranked.Recent("A", pinned = true),
+                Ranked.Recent("D", pinned = false),
+                Ranked.Recent("B", pinned = false),
+            ),
+            shelves.library,
+        )
         assertFalse(shelves.libraryEmpty)
         assertTrue(Ranking.of(emptyList(), emptyList()).shelves(emptyList<String>()) { it }.libraryEmpty)
         assertTrue(Shelves.empty<String>().libraryEmpty)
@@ -61,9 +66,10 @@ class RankingTest {
     fun deadPinsAndRecentsDoNotConjureSlots() {
         val shelves = Ranking.of(listOf("A", "Z"), listOf("Y", "B")).shelves(listOf("A", "B")) { it }
         assertEquals(listOf(Ranked.Favourite("A", canMoveEarlier = false, canMoveLater = false)), shelves.favourites)
+        assertEquals(listOf(Ranked.Recent("B", pinned = false)), shelves.recents)
         assertEquals(
-            listOf(Ranked.Recent("B", pinned = false), Ranked.Recent("A", pinned = true)),
-            shelves.recents,
+            listOf(Ranked.Recent("A", pinned = true), Ranked.Recent("B", pinned = false)),
+            shelves.library,
         )
     }
 
@@ -75,11 +81,12 @@ class RankingTest {
     }
 
     @Test
-    fun withSendHasNoCap() {
+    fun withSendCapsAt24() {
         val filled = (1..25).fold(Ranking.of(emptyList(), emptyList())) { acc, n ->
             acc.withSend("s$n")
         }
-        assertEquals((25 downTo 1).map { "s$it" }, filled.recents)
+        assertEquals((25 downTo 2).map { "s$it" }, filled.recents)
+        assertEquals(Ranking.RECENTS_MAX, filled.recents.size)
     }
 
     @Test
@@ -90,8 +97,12 @@ class RankingTest {
         val unpinned = pinned.withoutPin("A")
         assertEquals(listOf("A", "B"), unpinned.recents)
         assertEquals(
-            listOf("A", "B", "C"),
+            listOf("A", "B"),
             unpinned.shelves(listOf("C", "B", "A")) { it }.recents.map { it.item },
+        )
+        assertEquals(
+            listOf("C", "B", "A"),
+            unpinned.shelves(listOf("C", "B", "A")) { it }.library.map { it.item },
         )
     }
 

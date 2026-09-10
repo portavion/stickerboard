@@ -34,6 +34,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
@@ -54,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -261,12 +263,17 @@ private fun LibraryScreen(resumeTick: Int) {
             Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files, or paste an image.")
             Spacer(Modifier.weight(1f))
         } else {
-            val tabShelves = listOf(Shelf.Favourites, Shelf.Recents)
-            TabRow(selectedTabIndex = tabShelves.indexOf(shelf)) {
-                tabShelves.forEach { s ->
+            TabRow(selectedTabIndex = Shelf.entries.indexOf(shelf)) {
+                Shelf.entries.forEach { s ->
                     Tab(
                         selected = s == shelf,
                         onClick = { shelf = s },
+                        icon = {
+                            Icon(
+                                painterResource(shelfIcon(s)),
+                                contentDescription = null,
+                            )
+                        },
                         text = { Text(stringResource(shelfLabel(s))) },
                     )
                 }
@@ -397,6 +404,13 @@ private fun BoxScope.ThumbMark(
 private fun shelfLabel(shelf: Shelf) = when (shelf) {
     Shelf.Favourites -> R.string.shelf_favourites
     Shelf.Recents -> R.string.shelf_recents
+    Shelf.Library -> R.string.shelf_library
+}
+
+private fun shelfIcon(shelf: Shelf) = when (shelf) {
+    Shelf.Favourites -> R.drawable.ic_shelf_favourites
+    Shelf.Recents -> R.drawable.ic_shelf_recents
+    Shelf.Library -> R.drawable.ic_shelf_library
 }
 
 private fun imeEnabled(context: Context): Boolean {
