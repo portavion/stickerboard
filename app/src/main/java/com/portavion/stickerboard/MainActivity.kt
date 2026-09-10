@@ -113,7 +113,7 @@ private fun LibraryScreen(resumeTick: Int) {
     val store = remember { StickerStore(context) }
     val ranks = remember { RankStore.of(context) }
     var tick by remember { mutableIntStateOf(0) }
-    val shelves = remember(tick, resumeTick) { ranks.shelves(store.list()) }
+    val shelves = remember(tick, resumeTick) { ranks.shelves(store) }
     var shelf by remember { mutableStateOf(Shelf.Recents) }
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }

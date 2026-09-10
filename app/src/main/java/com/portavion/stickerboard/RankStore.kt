@@ -4,11 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 
 class RankStore private constructor(private val prefs: SharedPreferences) {
-    /**
-     * One snapshot of both shelves. GCs dead stems against [stickers].
-     * Pass the real library listing. An empty list would drop every stored stem.
-     */
-    fun shelves(stickers: List<Sticker>): Shelves<Sticker> {
+    fun shelves(store: StickerStore): Shelves<Sticker> {
+        val stickers = store.list()
         val live = stickers.map { it.stem }.toSet()
         return update { it.retaining(live) }.shelves(stickers) { it.stem }
     }

@@ -123,8 +123,7 @@ class StickerImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        val listed = store.list()
-        shelves = if (listed.isEmpty()) Shelves.empty() else ranks.shelves(listed)
+        shelves = ranks.shelves(store)
         show(shelf)
     }
 
