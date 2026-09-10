@@ -4,9 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 
 class RankStore private constructor(private val prefs: SharedPreferences) {
-    fun arrange(stickers: List<Sticker>): List<Ranked<Sticker>> {
+    fun shelves(store: StickerStore): Shelves<Sticker> {
+        val stickers = store.list()
         val live = stickers.map { it.stem }.toSet()
-        return update { it.retaining(live) }.arrange(stickers) { it.stem }
+        return update { it.retaining(live) }.shelves(stickers) { it.stem }
     }
 
     fun pin(sticker: Sticker) {

@@ -34,13 +34,17 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -110,7 +115,8 @@ private fun LibraryScreen(resumeTick: Int) {
     val store = remember { StickerStore(context) }
     val ranks = remember { RankStore.of(context) }
     var tick by remember { mutableIntStateOf(0) }
-    val stickers = remember(tick, resumeTick) { ranks.arrange(store.list()) }
+    val shelves = remember(tick, resumeTick) { ranks.shelves(store) }
+    var shelf by remember { mutableStateOf(Shelf.Recents) }
     val enabled = remember(resumeTick) { imeEnabled(context) }
     var editor by remember { mutableStateOf<Editor?>(null) }
     var showPolicy by remember { mutableStateOf(false) }
@@ -253,84 +259,99 @@ private fun LibraryScreen(resumeTick: Int) {
                 enabled = zipJob?.isActive != true
             ) { Text("Import") }
         }
-        if (stickers.isEmpty()) {
+        if (shelves.libraryEmpty) {
             Text("No stickers yet. Add PNG, WebP, GIF, or JPEG files, or paste an image.")
             Spacer(Modifier.weight(1f))
         } else {
+            TabRow(selectedTabIndex = Shelf.entries.indexOf(shelf)) {
+                Shelf.entries.forEach { s ->
+                    Tab(
+                        selected = s == shelf,
+                        onClick = { shelf = s },
+                        icon = {
+                            Icon(
+                                painterResource(shelfIcon(s)),
+                                contentDescription = null,
+                            )
+                        },
+                        text = { Text(stringResource(shelfLabel(s))) },
+                    )
+                }
+            }
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val cols = maxOf(1, (maxWidth / 88.dp).toInt())
                 val rows = maxOf(1, (maxHeight / 96.dp).toInt())
                 val pageSize = cols * rows
-                val pageCount = (stickers.size + pageSize - 1) / pageSize
-                val pagerState = rememberPagerState(pageCount = { pageCount })
-                Column(Modifier.fillMaxSize()) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.weight(1f).fillMaxWidth()
-                    ) { page ->
-                        val slice = stickers.drop(page * pageSize).take(pageSize)
-                        Column(
-                            Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            repeat(rows) { r ->
-                                Row(
-                                    Modifier.weight(1f).fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    repeat(cols) { c ->
-                                        val ranked = slice.getOrNull(r * cols + c)
-                                        if (ranked == null) {
-                                            Spacer(Modifier.weight(1f).fillMaxHeight())
-                                        } else {
-                                            val sticker = ranked.item
-                                            Box(Modifier.weight(1f).fillMaxHeight()) {
-                                                StickerThumb(
-                                                    sticker,
-                                                    Modifier.fillMaxSize().then(
-                                                        if (sticker.editable) {
-                                                            Modifier.clickable {
-                                                                if (editJob?.isActive == true) return@clickable
-                                                                editor = Editor.Segmenting(sticker)
-                                                                editJob = scope.launch {
-                                                                    val next = startEditing(context, sticker)
-                                                                    ensureActive()
-                                                                    editor = next
+                val cells = shelves[shelf]
+                val pageCount = maxOf(1, (cells.size + pageSize - 1) / pageSize)
+                key(shelf) {
+                    val pagerState = rememberPagerState(pageCount = { pageCount })
+                    Column(Modifier.fillMaxSize()) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        ) { page ->
+                            val slice = cells.drop(page * pageSize).take(pageSize)
+                            Column(
+                                Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                repeat(rows) { r ->
+                                    Row(
+                                        Modifier.weight(1f).fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        repeat(cols) { c ->
+                                            val ranked = slice.getOrNull(r * cols + c)
+                                            if (ranked == null) {
+                                                Spacer(Modifier.weight(1f).fillMaxHeight())
+                                            } else {
+                                                val sticker = ranked.item
+                                                Box(Modifier.weight(1f).fillMaxHeight()) {
+                                                    StickerThumb(
+                                                        sticker,
+                                                        Modifier.fillMaxSize().then(
+                                                            if (sticker.editable) {
+                                                                Modifier.clickable {
+                                                                    if (editJob?.isActive == true) return@clickable
+                                                                    editor = Editor.Segmenting(sticker)
+                                                                    editJob = scope.launch {
+                                                                        val next = startEditing(context, sticker)
+                                                                        ensureActive()
+                                                                        editor = next
+                                                                    }
                                                                 }
-                                                            }
-                                                        } else Modifier
+                                                            } else Modifier
+                                                        )
                                                     )
-                                                )
-                                                ThumbMark(
-                                                    if (ranked is Ranked.Pinned) "★" else "☆",
-                                                    Alignment.TopStart,
-                                                ) {
-                                                    when (ranked) {
-                                                        is Ranked.Pinned -> ranks.unpin(sticker)
-                                                        is Ranked.Unpinned -> ranks.pin(sticker)
-                                                    }
-                                                    tick++
-                                                }
-                                                ThumbMark("×", Alignment.TopEnd) {
-                                                    store.delete(sticker)
-                                                    tick++
-                                                }
-                                                if (ranked is Ranked.Pinned) {
                                                     ThumbMark(
-                                                        "‹",
-                                                        Alignment.BottomStart,
-                                                        enabled = ranked.canMoveEarlier,
+                                                        if (ranked.pinned) "★" else "☆",
+                                                        Alignment.TopStart,
                                                     ) {
-                                                        ranks.movePin(sticker, Move.Earlier)
+                                                        if (ranked.pinned) ranks.unpin(sticker) else ranks.pin(sticker)
                                                         tick++
                                                     }
-                                                    ThumbMark(
-                                                        "›",
-                                                        Alignment.BottomEnd,
-                                                        enabled = ranked.canMoveLater,
-                                                    ) {
-                                                        ranks.movePin(sticker, Move.Later)
+                                                    ThumbMark("×", Alignment.TopEnd) {
+                                                        store.delete(sticker)
                                                         tick++
+                                                    }
+                                                    if (ranked is Ranked.Favourite<Sticker>) {
+                                                        ThumbMark(
+                                                            "‹",
+                                                            Alignment.BottomStart,
+                                                            enabled = ranked.canMoveEarlier,
+                                                        ) {
+                                                            ranks.movePin(sticker, Move.Earlier)
+                                                            tick++
+                                                        }
+                                                        ThumbMark(
+                                                            "›",
+                                                            Alignment.BottomEnd,
+                                                            enabled = ranked.canMoveLater,
+                                                        ) {
+                                                            ranks.movePin(sticker, Move.Later)
+                                                            tick++
+                                                        }
                                                     }
                                                 }
                                             }
@@ -339,15 +360,15 @@ private fun LibraryScreen(resumeTick: Int) {
                                 }
                             }
                         }
-                    }
-                    if (pageCount > 1) {
-                        Text(
-                            "${pagerState.currentPage + 1} / $pageCount",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .padding(top = 8.dp)
-                        )
+                        if (pageCount > 1) {
+                            Text(
+                                "${pagerState.currentPage + 1} / $pageCount",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .padding(top = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -378,6 +399,18 @@ private fun BoxScope.ThumbMark(
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         )
     }
+}
+
+private fun shelfLabel(shelf: Shelf) = when (shelf) {
+    Shelf.Favourites -> R.string.shelf_favourites
+    Shelf.Recents -> R.string.shelf_recents
+    Shelf.Library -> R.string.shelf_library
+}
+
+private fun shelfIcon(shelf: Shelf) = when (shelf) {
+    Shelf.Favourites -> R.drawable.ic_shelf_favourites
+    Shelf.Recents -> R.drawable.ic_shelf_recents
+    Shelf.Library -> R.drawable.ic_shelf_library
 }
 
 private fun imeEnabled(context: Context): Boolean {
