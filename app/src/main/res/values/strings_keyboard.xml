@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="paste_from_clipboard">This app can\'t take stickers, so it\'s on your clipboard. Paste it from Gboard.</string>
+    <string name="copied">Copied to your clipboard</string>
+    <string name="kb_abc">ABC</string>
+    <string name="kb_abc_description">Back to your keyboard</string>
+    <string name="kb_empty_title">No stickers yet</string>
+    <string name="kb_empty_body">Add some in the app and they show up here.</string>
+    <string name="kb_no_favourites_body">Long-press a sticker in the app and tap the star.</string>
+    <string name="kb_no_recents_body">Stickers you send show up here.</string>
+    <string name="kb_open_app">Open stickerboard</string>
+</resources>

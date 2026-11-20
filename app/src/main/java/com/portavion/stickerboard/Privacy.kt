@@ -4,26 +4,61 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
-import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import java.io.File
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 internal sealed interface Block {
     data class Para(val text: String) : Block
@@ -293,46 +328,140 @@ private fun String.escapeHtml(): String = buildString(length) {
     }
 }
 
+/**
+ * The in-app privacy notice: a summary card of the short version up top, then every other
+ * section folded under its heading. The back arrow calls [onClose]; Web copy opens the hosted policy.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val policy = stickerboardPolicy
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(stringResource(R.string.privacy_policy), style = MaterialTheme.typography.headlineSmall)
-        Text("Effective ${policy.effective}", style = MaterialTheme.typography.bodySmall)
+    val snackbars = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val noBrowser = stringResource(R.string.privacy_no_browser)
+    val locale = LocalConfiguration.current.locales[0]
+    val effective = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale).format(policy.effective)
+    }
+    // The first section is "The short version"; its bullets fill the summary card.
+    val summary = policy.sections.first().blocks.filterIsInstance<Block.Bullets>().flatMap { it.items }
+    val folded = policy.sections.drop(1)
+    var expanded by remember { mutableStateOf(emptySet<String>()) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.privacy_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.privacy_back))
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        if (!openUrl(context, policy.webCopy)) {
+                            scope.launch { snackbars.showSnackbar(noBrowser) }
+                        }
+                    }) {
+                        Icon(
+                            painterResource(R.drawable.ic_pv_open_in_new),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.privacy_web_copy))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbars) },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 24.dp)
         ) {
-            policy.sections.forEach { section ->
-                Text(section.heading, style = MaterialTheme.typography.titleMedium)
-                section.blocks.forEach { block ->
-                    when (block) {
-                        is Block.Para -> Text(block.text, style = MaterialTheme.typography.bodyMedium)
-                        is Block.Bullets -> block.items.forEach { item ->
-                            Text("\u2022  $item", style = MaterialTheme.typography.bodyMedium)
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(22.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        stringResource(R.string.privacy_summary_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    )
+                    summary.forEach { item ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(
+                                Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(item, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(onClick = {
-                if (!openUrl(context, policy.webCopy)) {
-                    Toast.makeText(context, R.string.privacy_no_browser, Toast.LENGTH_SHORT).show()
+            Text(
+                stringResource(R.string.privacy_effective, effective),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
+            )
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                folded.forEach { section ->
+                    val open = section.heading in expanded
+                    val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
+                    val state = stringResource(if (open) R.string.privacy_expanded else R.string.privacy_collapsed)
+                    Column(Modifier.animateContentSize()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 50.dp)
+                                .clickable(role = Role.Button) {
+                                    expanded = if (open) expanded - section.heading else expanded + section.heading
+                                }
+                                .semantics { stateDescription = state },
+                        ) {
+                            Text(
+                                section.heading,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+                            )
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.rotate(turn),
+                            )
+                        }
+                        if (open) {
+                            Column(
+                                Modifier.padding(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                section.blocks.forEach { block ->
+                                    when (block) {
+                                        is Block.Para -> Text(block.text, style = MaterialTheme.typography.bodyMedium)
+                                        is Block.Bullets -> block.items.forEach { item ->
+                                            Text("\u2022  $item", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
-            }) {
-                Text(stringResource(R.string.privacy_web_copy))
-            }
-            FilledTonalButton(onClick = onClose) {
-                Text(stringResource(R.string.privacy_close))
             }
         }
     }

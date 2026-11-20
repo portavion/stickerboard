@@ -2,40 +2,9 @@
 <resources>
     <string name="app_name">stickerboard</string>
     <string name="ime_name">stickerboard</string>
-    <string name="paste_from_clipboard">Paste from Gboard clipboard</string>
-    <string name="copied">Copied</string>
-    <string name="paste_empty">Nothing to paste</string>
-    <string name="paste_not_image">Clipboard isn\'t an image</string>
-    <string name="paste_unreadable">Couldn\'t read that image</string>
-    <string name="look_cutout">Cutout</string>
-    <string name="look_sticker">Sticker</string>
-    <string name="look_save">Save</string>
-    <string name="look_revert">Revert</string>
-    <string name="look_close">Close</string>
-    <string name="look_now_sending">Now sending</string>
-    <string name="save_failed">Couldn\'t save that look</string>
-    <string name="look_unreadable">Couldn\'t read that image</string>
-    <string name="look_no_subject">No subject found</string>
-    <string name="look_model_unavailable">Segmentation model isn\'t available</string>
-    <string name="look_crashed">Segmentation failed</string>
-    <plurals name="exported">
-        <item quantity="one">Exported %d sticker</item>
-        <item quantity="other">Exported %d stickers</item>
-    </plurals>
-    <plurals name="imported">
-        <item quantity="one">Imported %d sticker</item>
-        <item quantity="other">Imported %d stickers</item>
-    </plurals>
-    <string name="export_failed">Couldn\'t write that zip</string>
-    <string name="import_not_zip">That isn\'t a zip</string>
-    <string name="import_unreadable">Couldn\'t read that zip</string>
     <string name="shelf_favourites">Favourites</string>
     <string name="shelf_recents">Recents</string>
     <string name="shelf_library">Library</string>
     <string name="ime_no_favourites">No favourites yet</string>
     <string name="ime_no_recents">No recents yet</string>
-    <string name="privacy_policy">Privacy policy</string>
-    <string name="privacy_web_copy">Open web copy</string>
-    <string name="privacy_close">Close</string>
-    <string name="privacy_no_browser">No app to open links</string>
 </resources>

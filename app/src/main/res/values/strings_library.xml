@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar and menu -->
+    <string name="lib_more">More options</string>
+    <string name="lib_backup">Back up to a zip</string>
+    <string name="lib_restore">Restore from a zip</string>
+    <string name="lib_add">Add stickers</string>
+    <string name="lib_paste">Paste image</string>
+
+    <!-- Selection -->
+    <plurals name="lib_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="lib_clear_selection">Clear selection</string>
+    <string name="lib_delete">Delete</string>
+    <plurals name="lib_deleted">
+        <item quantity="one">Deleted %d sticker</item>
+        <item quantity="other">Deleted %d stickers</item>
+    </plurals>
+    <string name="lib_undo">Undo</string>
+    <string name="lib_pin">Add to favourites</string>
+    <string name="lib_unpin">Remove from favourites</string>
+    <string name="lib_move_earlier">Move earlier</string>
+    <string name="lib_move_later">Move later</string>
+
+    <!-- Empty shelves -->
+    <string name="lib_no_favourites">No favourites yet</string>
+    <string name="lib_no_favourites_sub">Long-press a sticker, then tap the star.</string>
+    <string name="lib_no_recents">No recents yet</string>
+    <string name="lib_no_recents_sub">Stickers you send from the keyboard show up here.</string>
+
+    <!-- Grid -->
+    <plurals name="lib_count">
+        <item quantity="one">%d sticker</item>
+        <item quantity="other">%d stickers</item>
+    </plurals>
+    <string name="lib_hint">Tap a sticker to cut it out or give it a white border.</string>
+    <string name="lib_got_it">Got it</string>
+    <string name="lib_badge_gif">GIF</string>
+    <string name="lib_badge_new">NEW</string>
+
+    <!-- Keyboard setup card -->
+    <string name="lib_setup_title">Set up your keyboard</string>
+    <string name="lib_setup_step1">Turn on stickerboard in Settings</string>
+    <string name="lib_setup_step1_done">Done</string>
+    <string name="lib_setup_open_settings">Open Settings</string>
+    <string name="lib_setup_step2">Try it here. Tap the field, long-press the spacebar, pick stickerboard, then tap a sticker.</string>
+    <string name="lib_setup_field">Type here to test</string>
+    <string name="lib_setup_received">It works. That sticker came from your keyboard.</string>
+    <string name="lib_setup_switch">Switch keyboard</string>
+    <string name="lib_setup_done">Done</string>
+
+    <!-- Empty library -->
+    <string name="lib_empty_title">Your stickers live here</string>
+    <string name="lib_empty_body">Anything you add shows up in your keyboard.</string>
+    <string name="lib_way_photos">Choose from Photos</string>
+    <string name="lib_way_photos_sub">PNG, WebP, GIF or JPEG</string>
+    <string name="lib_way_paste">Paste an image</string>
+    <string name="lib_way_paste_sub">Copy one in any app first</string>
+    <string name="lib_way_share">Share to stickerboard</string>
+    <string name="lib_way_share_sub">From Photos, Chrome or a chat</string>
+
+    <!-- Results -->
+    <plurals name="lib_added">
+        <item quantity="one">Added %d sticker</item>
+        <item quantity="other">Added %d stickers</item>
+    </plurals>
+    <string name="lib_make_sticker">Make sticker</string>
+    <string name="lib_add_failed">Couldn\'t add that image. Try again, or pick a PNG, WebP, GIF or JPEG.</string>
+    <string name="paste_empty">Your clipboard is empty. Copy an image first.</string>
+    <string name="paste_not_image">That\'s not an image. Copy an image and try again.</string>
+    <string name="paste_unreadable">Couldn\'t read that image. Copy it again.</string>
+    <plurals name="exported">
+        <item quantity="one">Backed up %d sticker</item>
+        <item quantity="other">Backed up %d stickers</item>
+    </plurals>
+    <plurals name="imported">
+        <item quantity="one">Restored %d sticker</item>
+        <item quantity="other">Restored %d stickers</item>
+    </plurals>
+    <string name="export_failed">Couldn\'t write the backup. Try another location.</string>
+    <string name="import_not_zip">That file isn\'t a stickerboard backup zip.</string>
+    <string name="import_unreadable">Couldn\'t read that zip.</string>
+</resources>

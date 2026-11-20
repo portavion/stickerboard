@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="sb_accent">#8EA0FF</color>
+    <color name="sb_on_accent">#0E1030</color>
+    <color name="sb_accent_soft">#262B52</color>
+    <color name="sb_on_accent_soft">#E0E4FF</color>
+    <color name="sb_bg">#121320</color>
+    <color name="sb_surface">#1A1C2B</color>
+    <color name="sb_surface_low">#171927</color>
+    <color name="sb_tile">#1E2031</color>
+    <color name="sb_surface_high">#26293C</color>
+    <color name="sb_surface_highest">#2E3147</color>
+    <color name="sb_ink">#ECEDF7</color>
+    <color name="sb_muted">#9C9FB8</color>
+    <color name="sb_outline">#6F7290</color>
+    <color name="sb_line">#2C2F45</color>
+    <color name="sb_highlight">#FFD84D</color>
+    <color name="sb_on_highlight">#16172A</color>
+    <color name="sb_error">#FF7A70</color>
+    <color name="sb_on_error">#2A0705</color>
+    <color name="sb_inverse_surface">#E6E8F4</color>
+    <color name="sb_inverse_on_surface">#16172A</color>
+    <color name="sb_inverse_accent">#2F4BFF</color>
+    <color name="sb_keyboard">#181A29</color>
+    <color name="sb_wordmark_outline">#FFFFFF</color>
+    <color name="sb_wordmark_fill">#2F4BFF</color>
+</resources>
