@@ -149,39 +149,6 @@ class StickerStore(private val root: File, private val scratch: File) {
         sweepTmp(sticker.stem)
     }
 
-    /**
-     * Stickers the keyboard sent, most recent first. Stems whose sticker was deleted drop out.
-     */
-    fun recents(): List<Sticker> {
-        val byStem = list().associateBy { it.stem }
-        return readRecentStems().mapNotNull { byStem[it] }
-    }
-
-    /**
-     * Moves [sticker] to the front of [recents], keeping at most [RECENT_LIMIT] stems.
-     */
-    fun recordSend(sticker: Sticker) {
-        val stems = (listOf(sticker.stem) + readRecentStems().filter { it != sticker.stem })
-            .take(RECENT_LIMIT)
-        val file = File(dir, RECENTS_FILE)
-        val tmp = File(dir, "$RECENTS_FILE.tmp")
-        try {
-            tmp.writeText(stems.joinToString("\n"))
-            if (!tmp.renameTo(file)) tmp.delete()
-        } catch (_: IOException) {
-            // Recents are a convenience; a failed write must never block a send.
-            tmp.delete()
-        }
-    }
-
-    // Not an image extension, so list(), export and restore never see this file.
-    private fun readRecentStems(): List<String> =
-        try {
-            File(dir, RECENTS_FILE).takeIf { it.isFile }?.readLines()?.filter { it.isNotBlank() }
-        } catch (_: IOException) {
-            null
-        } ?: emptyList()
-
     fun contentUri(context: Context, sticker: Sticker): Uri =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", sticker.sent.file)
 
@@ -337,10 +304,6 @@ class StickerStore(private val root: File, private val scratch: File) {
     }
 
     companion object {
-        /** How many stems [recordSend] keeps. */
-        const val RECENT_LIMIT = 8
-        private const val RECENTS_FILE = "recents.txt"
-
         private var n = 0
             get() = field++
 

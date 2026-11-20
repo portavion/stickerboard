@@ -52,6 +52,7 @@ import kotlin.math.max
  */
 class StickerImeService : InputMethodService() {
     private val store by lazy { StickerStore(this) }
+    private val ranks by lazy { RankStore.of(this) }
     private val main = Handler(Looper.getMainLooper())
     private var grid = GridAdapter()
     // True from a tap until the next input view starts, so a double tap sends one sticker.
@@ -212,7 +213,7 @@ class StickerImeService : InputMethodService() {
         val columns = max(MIN_COLUMNS, (metrics.widthPixels / metrics.density / CELL_DP).toInt())
         val all = store.list()
         // One row of recents keeps the All grid in view on a phone.
-        val recents = store.recents().take(columns)
+        val recents = ranks.shelves(store).recents.map { it.item }.take(columns)
         (list?.layoutManager as? GridLayoutManager)?.spanCount = columns
         grid.replace(recents, all)
         list?.scrollToPosition(0)
@@ -281,7 +282,7 @@ class StickerImeService : InputMethodService() {
             copyToClipboard(sticker)
             Toast.makeText(this, R.string.paste_from_clipboard, Toast.LENGTH_LONG).show()
         }
-        store.recordSend(sticker)
+        ranks.recordSend(sticker)
         // Leave the pressed tile on screen for a beat so a hit reads as a hit.
         main.postDelayed(::goBackToPreviousIme, SWITCH_BACK_MS)
     }

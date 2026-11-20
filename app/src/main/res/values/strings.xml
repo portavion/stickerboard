@@ -2,4 +2,9 @@
 <resources>
     <string name="app_name">stickerboard</string>
     <string name="ime_name">stickerboard</string>
+    <string name="shelf_favourites">Favourites</string>
+    <string name="shelf_recents">Recents</string>
+    <string name="shelf_library">Library</string>
+    <string name="ime_no_favourites">No favourites yet</string>
+    <string name="ime_no_recents">No recents yet</string>
 </resources>
