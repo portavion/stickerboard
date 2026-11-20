@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand palette. One source for the Compose theme (Theme.kt) and the View-based keyboard. -->
+<resources>
+    <color name="sb_accent">#2F4BFF</color>
+    <color name="sb_on_accent">#FFFFFF</color>
+    <color name="sb_accent_soft">#E3E7FF</color>
+    <color name="sb_on_accent_soft">#0E1550</color>
+    <color name="sb_bg">#F7F8FC</color>
+    <color name="sb_surface">#FFFFFF</color>
+    <color name="sb_surface_low">#F0F2F9</color>
+    <color name="sb_tile">#E9ECF5</color>
+    <color name="sb_surface_high">#E3E6F0</color>
+    <color name="sb_surface_highest">#DDE0EC</color>
+    <color name="sb_ink">#16172A</color>
+    <color name="sb_muted">#62657D</color>
+    <color name="sb_outline">#8A8DA3</color>
+    <color name="sb_line">#DCDFEA</color>
+    <color name="sb_highlight">#FFD84D</color>
+    <color name="sb_on_highlight">#16172A</color>
+    <color name="sb_error">#BE2F2F</color>
+    <color name="sb_on_error">#FFFFFF</color>
+    <color name="sb_inverse_surface">#24263A</color>
+    <color name="sb_inverse_on_surface">#FFFFFF</color>
+    <color name="sb_inverse_accent">#AEB9FF</color>
+    <color name="sb_keyboard">#E6E9F1</color>
+    <color name="sb_wordmark_outline">#FFFFFF</color>
+    <!-- The wordmark is a sticker: same cobalt and white border in light and dark. -->
+    <color name="sb_wordmark_fill">#2F4BFF</color>
+</resources>

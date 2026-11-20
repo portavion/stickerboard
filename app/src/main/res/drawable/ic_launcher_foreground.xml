@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- White sticker with a folded corner and a cobalt s. The 44dp sticker sits well inside the 66dp safe zone of the 108dp canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-9">
+        <!-- Soft drop shadow under the sticker. -->
+        <group android:translateY="1.6">
+            <path
+                android:fillColor="#0A1A99"
+                android:fillAlpha="0.35"
+                android:pathData="M42,32 H66 A10,10 0 0 1 76,42 V62.8 L62.8,76 H42 A10,10 0 0 1 32,66 V42 A10,10 0 0 1 42,32 Z" />
+        </group>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M42,32 H66 A10,10 0 0 1 76,42 V62.8 L62.8,76 H42 A10,10 0 0 1 32,66 V42 A10,10 0 0 1 42,32 Z" />
+        <path
+            android:fillColor="#C9D0F2"
+            android:pathData="M76,62.8 L62.8,76 V65.3 A2.5,2.5 0 0 1 65.3,62.8 Z" />
+        <path
+            android:fillColor="#2F4BFF"
+            android:pathData="M58.13,45.05 A6.5,6.5 0 1 0 52.5,54.8 A1.9,1.9 0 1 1 50.85,57.65 A2.3,2.3 0 0 0 47.71,56.81 A2.3,2.3 0 0 0 46.87,59.95 A6.5,6.5 0 1 0 52.5,50.2 A1.9,1.9 0 1 1 54.15,47.35 A2.3,2.3 0 0 0 57.29,48.19 A2.3,2.3 0 0 0 58.13,45.05 Z" />
+    </group>
+</vector>

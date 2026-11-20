@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_title">Make a sticker</string>
+    <string name="look_save">Save</string>
+    <string name="look_close">Close</string>
+    <string name="editor_try_again">Try again</string>
+    <string name="look_use_original">Use original</string>
+    <string name="editor_finding">Finding the subject…</string>
+    <string name="editor_downloading">Downloading the cutout model…</string>
+    <string name="editor_downloading_hint">First time only: Google Play is downloading the cutout model. After that, cutouts run on your phone.</string>
+    <string name="style_original">Original</string>
+    <string name="look_cutout">Cutout</string>
+    <string name="look_white_border">White border</string>
+    <string name="style_saved">Saved</string>
+    <string name="look_sending">Sending</string>
+    <string name="save_failed">Couldn\'t save this style. Check that your phone has free space, then try again.</string>
+    <string name="look_unreadable">Couldn\'t open this image</string>
+    <string name="look_unreadable_body">The file may be damaged. Delete it from your library and add it again.</string>
+    <string name="look_no_subject">No clear subject</string>
+    <string name="look_no_subject_body">Try a photo where one thing stands out from the background.</string>
+    <string name="look_model_unavailable">Cutout isn\'t ready</string>
+    <string name="look_model_unavailable_body">Google Play is still downloading the cutout model. Check your connection, then try again.</string>
+    <string name="look_crashed">Couldn\'t cut out this photo</string>
+    <string name="look_crashed_body">Something went wrong while cutting it out. Try again.</string>
+</resources>

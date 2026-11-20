@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_back">Back</string>
+    <string name="privacy_web_copy">Web copy</string>
+    <string name="privacy_no_browser">No app can open links on this phone.</string>
+    <string name="privacy_summary_title">Nothing leaves your phone</string>
+    <!-- %1$s is the effective date, written out in words for the phone's language, e.g. 9 September 2026. -->
+    <string name="privacy_effective">Effective %1$s</string>
+    <string name="privacy_expanded">Expanded</string>
+    <string name="privacy_collapsed">Collapsed</string>
+</resources>
