@@ -19,6 +19,16 @@
         <item quantity="other">Deleted %d stickers</item>
     </plurals>
     <string name="lib_undo">Undo</string>
+    <string name="lib_pin">Add to favourites</string>
+    <string name="lib_unpin">Remove from favourites</string>
+    <string name="lib_move_earlier">Move earlier</string>
+    <string name="lib_move_later">Move later</string>
+
+    <!-- Empty shelves -->
+    <string name="lib_no_favourites">No favourites yet</string>
+    <string name="lib_no_favourites_sub">Long-press a sticker, then tap the star.</string>
+    <string name="lib_no_recents">No recents yet</string>
+    <string name="lib_no_recents_sub">Stickers you send from the keyboard show up here.</string>
 
     <!-- Grid -->
     <plurals name="lib_count">

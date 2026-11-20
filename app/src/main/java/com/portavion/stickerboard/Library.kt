@@ -49,6 +49,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -72,11 +73,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -122,12 +125,14 @@ import kotlinx.coroutines.withContext
  * The library screen's state. [MainActivity] owns it so images shared in from other apps and
  * actions on the screen report through the same [snackbar].
  *
- * Selection mode is [selected] being non-empty. Stickers in [pendingDelete] are hidden but stay
- * on disk until their Undo snackbar closes without Undo.
+ * Selection mode is [selected] being non-empty, and it only ever holds stickers on the [shelf]
+ * on screen. Stickers in [pendingDelete] are hidden on every shelf but stay on disk until their
+ * Undo snackbar closes without Undo.
  */
 class LibraryState(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("library", Context.MODE_PRIVATE)
+    private val ranks = RankStore.of(app)
 
     /** Where the stickers live on disk. */
     val store = StickerStore(app)
@@ -135,8 +140,12 @@ class LibraryState(context: Context) {
     /** The one snackbar host for every result on this screen. */
     val snackbar = SnackbarHostState()
 
-    /** Every sticker on disk, newest first. */
-    var stickers by mutableStateOf(emptyList<Sticker>())
+    /** Every sticker on disk, sorted onto the Favourites, Recents and Library shelves. */
+    var shelves by mutableStateOf(Shelves.empty<Sticker>())
+        private set
+
+    /** The shelf on screen. Change it with [show]. */
+    var shelf by mutableStateOf(Shelf.Library)
         private set
 
     /** Whether stickerboard is turned on in the system keyboard settings. */
@@ -166,20 +175,71 @@ class LibraryState(context: Context) {
 
     init {
         refresh()
+        // Open on what the user sends most; a library nothing was sent from yet opens on everything.
+        if (shelves.recents.isNotEmpty()) shelf = Shelf.Recents
     }
 
-    /** Stickers on screen: everything on disk except those waiting on Undo. */
-    val visible: List<Sticker>
+    /** Every sticker in the library except those waiting on Undo, newest first. */
+    val library: List<Sticker>
         get() {
             val gone = pendingDelete.mapTo(HashSet()) { it.stem }
-            return stickers.filterNot { it.stem in gone }
+            return shelves.library.map { it.item }.filterNot { it.stem in gone }
         }
 
-    /** Re-reads the stickers on disk and whether the keyboard is turned on. */
+    /** Stickers on the current shelf, in shelf order, except those waiting on Undo. */
+    val visible: List<Ranked<Sticker>>
+        get() {
+            val gone = pendingDelete.mapTo(HashSet()) { it.stem }
+            return shelves[shelf].filterNot { it.item.stem in gone }
+        }
+
+    /** Whether every selected sticker is already a favourite, so the star removes them. */
+    val selectionPinned: Boolean
+        get() = visible.filter { it.item.stem in selected }.all { it.pinned }
+
+    /** The one selected sticker when it can be moved along the Favourites shelf, else null. */
+    val movable: Ranked.Favourite<Sticker>?
+        get() {
+            if (shelf != Shelf.Favourites) return null
+            val stem = selected.singleOrNull() ?: return null
+            return shelves.favourites.find { it.item.stem == stem }
+        }
+
+    /** Re-reads the stickers on disk, their pins and recents, and whether the keyboard is turned on. */
     fun refresh() {
-        stickers = store.list()
+        shelves = ranks.shelves(store)
+        // A sticker that left the shelf on screen can't stay selected where nobody sees it.
+        val here = visible.mapTo(HashSet()) { it.item.stem }
+        if (!here.containsAll(selected)) selected = selected.filterTo(LinkedHashSet()) { it in here }
         keyboardOn = app.getSystemService(InputMethodManager::class.java)
             .enabledInputMethodList.any { it.packageName == app.packageName }
+    }
+
+    /** Puts [next] on screen. Changing shelf ends selection. */
+    fun show(next: Shelf) {
+        if (next == shelf) return
+        shelf = next
+        selected = emptySet()
+    }
+
+    /**
+     * Stars the selected stickers, in the order they were selected, or unstars them all when
+     * every one is already a favourite. Unstarred stickers leave the Favourites shelf, and with
+     * them the selection.
+     */
+    fun togglePins() {
+        val byStem = visible.associateBy { it.item.stem }
+        val chosen = selected.mapNotNull { byStem[it] }
+        if (chosen.all { it.pinned }) chosen.forEach { ranks.unpin(it.item) }
+        else chosen.filterNot { it.pinned }.forEach { ranks.pin(it.item) }
+        refresh()
+    }
+
+    /** Moves the [movable] favourite one place along the shelf. It stays selected for the next tap. */
+    fun moveSelected(move: Move) {
+        val favourite = movable ?: return
+        ranks.movePin(favourite.item, move)
+        refresh()
     }
 
     /** Hides the setup card for good once the keyboard is on. */
@@ -225,6 +285,8 @@ class LibraryState(context: Context) {
             return
         }
         refresh()
+        // Never-sent stickers aren't on Recents or Favourites, so the NEW one only shows on Library.
+        show(Shelf.Library)
         // The store writes in order, so the last one added sorts first in the grid.
         newest = added.last().stem
         val one = added.singleOrNull()?.takeIf { it.editable }
@@ -242,7 +304,7 @@ class LibraryState(context: Context) {
      * without Undo; if [scope] dies first, the stickers stay.
      */
     fun deleteSelected(scope: CoroutineScope) {
-        val doomed = visible.filter { it.stem in selected }
+        val doomed = library.filter { it.stem in selected }
         selected = emptySet()
         if (doomed.isEmpty()) return
         val stems = doomed.mapTo(HashSet()) { it.stem }
@@ -351,9 +413,10 @@ fun LibraryScreen(state: LibraryState) {
         return
     }
 
+    val total = state.library.size
     val visible = state.visible
     val selecting = state.selected.isNotEmpty()
-    val showFabs = !selecting && visible.isNotEmpty()
+    val showFabs = !selecting && total > 0
     BackHandler(enabled = selecting) { state.selected = emptySet() }
 
     Scaffold(
@@ -375,6 +438,27 @@ fun LibraryScreen(state: LibraryState) {
                         }
                     },
                     actions = {
+                        IconButton(onClick = state::togglePins) {
+                            if (state.selectionPinned) {
+                                Icon(Icons.Rounded.Star, stringResource(R.string.lib_unpin))
+                            } else {
+                                Icon(painterResource(R.drawable.ic_lib_star_outline), stringResource(R.string.lib_pin))
+                            }
+                        }
+                        state.movable?.let { favourite ->
+                            IconButton(
+                                onClick = { state.moveSelected(Move.Earlier) },
+                                enabled = favourite.canMoveEarlier,
+                            ) {
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.lib_move_earlier))
+                            }
+                            IconButton(
+                                onClick = { state.moveSelected(Move.Later) },
+                                enabled = favourite.canMoveLater,
+                            ) {
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.lib_move_later))
+                            }
+                        }
                         IconButton(onClick = { state.deleteSelected(scope) }) {
                             Icon(Icons.Rounded.Delete, stringResource(R.string.lib_delete))
                         }
@@ -617,7 +701,7 @@ fun LibraryScreen(state: LibraryState) {
                 }
             }
 
-            if (visible.isEmpty()) {
+            if (total == 0) {
                 // Empty library: a small die-cut cluster, then the three ways stickers get in.
                 item(key = "header/empty", span = { GridItemSpan(maxLineSpan) }) {
                     val ways = listOf(
@@ -714,17 +798,83 @@ fun LibraryScreen(state: LibraryState) {
                     }
                 }
             } else {
-                item(key = "header/count", span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        pluralStringResource(R.plurals.lib_count, visible.size, visible.size),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 2.dp, top = 6.dp),
-                    )
+                item(key = "header/shelves", span = { GridItemSpan(maxLineSpan) }) {
+                    PrimaryTabRow(
+                        selectedTabIndex = state.shelf.ordinal,
+                        containerColor = colors.background,
+                        contentColor = colors.primary,
+                        divider = { HorizontalDivider(color = colors.outlineVariant) },
+                    ) {
+                        Shelf.entries.forEach { shelf ->
+                            val (icon, label) = when (shelf) {
+                                Shelf.Favourites -> R.drawable.ic_shelf_favourites to R.string.shelf_favourites
+                                Shelf.Recents -> R.drawable.ic_shelf_recents to R.string.shelf_recents
+                                Shelf.Library -> R.drawable.ic_shelf_library to R.string.shelf_library
+                            }
+                            Tab(
+                                selected = shelf == state.shelf,
+                                onClick = { state.show(shelf) },
+                                icon = { Icon(painterResource(icon), null) },
+                                text = { Text(stringResource(label)) },
+                                selectedContentColor = colors.primary,
+                                unselectedContentColor = colors.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                // The total only reads right under Library; on the other shelves it looks like their size.
+                if (state.shelf == Shelf.Library) {
+                    item(key = "header/count", span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            pluralStringResource(R.plurals.lib_count, total, total),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp, top = 6.dp),
+                        )
+                    }
+                }
+
+                if (visible.isEmpty()) {
+                    // Library is never empty here: an empty library shows the welcome above instead.
+                    item(key = "header/shelf-empty", span = { GridItemSpan(maxLineSpan) }) {
+                        val (icon, title, sub) = if (state.shelf == Shelf.Favourites) {
+                            Triple(R.drawable.ic_shelf_favourites, R.string.lib_no_favourites, R.string.lib_no_favourites_sub)
+                        } else {
+                            Triple(R.drawable.ic_shelf_recents, R.string.lib_no_recents, R.string.lib_no_recents_sub)
+                        }
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(
+                                Modifier
+                                    .padding(bottom = 6.dp)
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(colors.primaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(painterResource(icon), null, tint = colors.primary)
+                            }
+                            Text(
+                                stringResource(title),
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                            )
+                            Text(
+                                stringResource(sub),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
                 }
 
                 // One-time hint: tapping a sticker opens the editor.
-                if (!state.hintSeen && !selecting) {
+                if (!state.hintSeen && !selecting && visible.isNotEmpty()) {
                     item(key = "header/hint", span = { GridItemSpan(maxLineSpan) }) {
                         Row(
                             Modifier
@@ -747,7 +897,8 @@ fun LibraryScreen(state: LibraryState) {
                     }
                 }
 
-                items(visible, key = { "sticker/${it.stem}" }) { sticker ->
+                items(visible, key = { "sticker/${it.item.stem}" }) { ranked ->
+                    val sticker = ranked.item
                     val isSelected = sticker.stem in state.selected
                     val interaction = remember { MutableInteractionSource() }
                     val pressed by interaction.collectIsPressedAsState()
@@ -807,6 +958,20 @@ fun LibraryScreen(state: LibraryState) {
                                     .background(colors.surfaceContainerLowest)
                                     .padding(horizontal = 5.dp, vertical = 2.dp),
                             )
+                        }
+                        // Everything on Favourites is pinned, so only the other shelves mark pins.
+                        if (ranked.pinned && ranked !is Ranked.Favourite) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(6.dp)
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.tertiary),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Rounded.Star, null, Modifier.size(13.dp), tint = colors.onTertiary)
+                            }
                         }
                         if (sticker.stem == state.newest) {
                             Text(

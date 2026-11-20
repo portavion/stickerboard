@@ -32,7 +32,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
@@ -42,13 +41,12 @@ import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.LinearSmoothScroller
 import androidx.recyclerview.widget.RecyclerView
 import kotlin.math.max
 
 /**
- * The sticker keyboard: a Recent row above a scrolling grid of every sticker. Tapping one
- * sends it, then hands control back to the previous keyboard.
+ * The sticker keyboard: Favourites, Recents and Library tabs over a scrolling grid of the
+ * selected shelf. Tapping a sticker sends it, then hands control back to the previous keyboard.
  */
 class StickerImeService : InputMethodService() {
     private val store by lazy { StickerStore(this) }
@@ -58,9 +56,14 @@ class StickerImeService : InputMethodService() {
     // True from a tap until the next input view starts, so a double tap sends one sticker.
     private var sending = false
     private var list: RecyclerView? = null
-    private var recentChip: TextView? = null
-    private var allChip: TextView? = null
+    private val tabs = mutableMapOf<Shelf, ImageView>()
+    private var shelves: Shelves<Sticker> = Shelves.empty()
+    // Null until the first start picks a default, then the shelf the user last picked.
+    private var shelf: Shelf? = null
     private var empty: View? = null
+    private var emptyTitle: TextView? = null
+    private var emptyBody: TextView? = null
+    private var openApp: View? = null
 
     override fun onEvaluateFullscreenMode() = false
 
@@ -95,13 +98,31 @@ class StickerImeService : InputMethodService() {
             },
             LinearLayout.LayoutParams(WRAP_CONTENT, dp(32))
         )
-        recentChip = jumpChip(R.string.kb_recent) { jumpTo(0, recent = true) }
-        allChip = jumpChip(R.string.kb_all) { jumpTo(grid.allStart, recent = false) }
-        for (chip in listOf(recentChip, allChip)) {
+        tabs.clear()
+        for (target in Shelf.entries) {
+            val tab = ImageView(this).apply {
+                setImageResource(
+                    when (target) {
+                        Shelf.Favourites -> R.drawable.ic_shelf_favourites
+                        Shelf.Recents -> R.drawable.ic_shelf_recents
+                        Shelf.Library -> R.drawable.ic_shelf_library
+                    }
+                )
+                contentDescription = getString(
+                    when (target) {
+                        Shelf.Favourites -> R.string.shelf_favourites
+                        Shelf.Recents -> R.string.shelf_recents
+                        Shelf.Library -> R.string.shelf_library
+                    }
+                )
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(13), dp(6), dp(13), dp(6))
+                setOnClickListener { show(target) }
+            }
+            tabs[target] = tab
             bar.addView(
-                chip,
-                LinearLayout.LayoutParams(WRAP_CONTENT, dp(30))
-                    .apply { marginStart = dp(8) }
+                tab,
+                LinearLayout.LayoutParams(dp(44), dp(30)).apply { marginStart = dp(8) }
             )
         }
         root.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, dp(44)))
@@ -111,26 +132,9 @@ class StickerImeService : InputMethodService() {
             RecyclerView(this).apply {
                 list = this
                 adapter = grid
-                layoutManager = GridLayoutManager(context, MIN_COLUMNS).apply {
-                    spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
-                        override fun getSpanSize(position: Int) =
-                            if (grid.rows[position] is Row.Label) spanCount else 1
-                    }
-                }
-                setPadding(dp(7), 0, dp(7), dp(8))
+                layoutManager = GridLayoutManager(context, MIN_COLUMNS)
+                setPadding(dp(7), dp(4), dp(7), dp(8))
                 clipToPadding = false
-                addOnScrollListener(
-                    object : RecyclerView.OnScrollListener() {
-                        override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-                            if (newState != RecyclerView.SCROLL_STATE_IDLE) return
-                            if (grid.allStart == 0) return
-                            val first = (rv.layoutManager as GridLayoutManager)
-                                .findFirstVisibleItemPosition()
-                            // At the bottom, All is the section in view even if Recent still shows.
-                            markActive(recent = first < grid.allStart && rv.canScrollVertically(1))
-                        }
-                    }
-                )
             },
             FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
         )
@@ -141,7 +145,7 @@ class StickerImeService : InputMethodService() {
             visibility = View.GONE
             addView(
                 TextView(context).apply {
-                    setText(R.string.kb_empty_title)
+                    emptyTitle = this
                     setTextColor(ink)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
                     typeface = Typeface.create(
@@ -153,7 +157,7 @@ class StickerImeService : InputMethodService() {
             )
             addView(
                 TextView(context).apply {
-                    setText(R.string.kb_empty_body)
+                    emptyBody = this
                     setTextColor(getColor(R.color.sb_muted))
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                     gravity = Gravity.CENTER
@@ -166,6 +170,7 @@ class StickerImeService : InputMethodService() {
             val onAccent = getColor(R.color.sb_on_accent)
             addView(
                 TextView(context).apply {
+                    openApp = this
                     setText(R.string.kb_open_app)
                     setTextColor(onAccent)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -211,45 +216,39 @@ class StickerImeService : InputMethodService() {
         sending = false
         val metrics = resources.displayMetrics
         val columns = max(MIN_COLUMNS, (metrics.widthPixels / metrics.density / CELL_DP).toInt())
-        val all = store.list()
-        // One row of recents keeps the All grid in view on a phone.
-        val recents = ranks.shelves(store).recents.map { it.item }.take(columns)
         (list?.layoutManager as? GridLayoutManager)?.spanCount = columns
-        grid.replace(recents, all)
-        list?.scrollToPosition(0)
-        list?.visibility = if (all.isEmpty()) View.GONE else View.VISIBLE
-        empty?.visibility = if (all.isEmpty()) View.VISIBLE else View.GONE
-        val chips = if (recents.isEmpty()) View.GONE else View.VISIBLE
-        recentChip?.visibility = chips
-        allChip?.visibility = chips
-        markActive(recent = true)
+        shelves = ranks.shelves(store)
+        val tabVisibility = if (shelves.libraryEmpty) View.GONE else View.VISIBLE
+        tabs.values.forEach { it.visibility = tabVisibility }
+        show(
+            shelf ?: if (shelves.recents.isEmpty()) Shelf.Library else Shelf.Recents
+        )
     }
 
-    private fun jumpChip(@StringRes text: Int, onClick: () -> Unit) =
-        TextView(this).apply {
-            setText(text)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), 0, dp(12), 0)
-            setOnClickListener { onClick() }
-        }
-
-    private fun jumpTo(position: Int, recent: Boolean) {
-        markActive(recent)
-        val scroller = object : LinearSmoothScroller(this) {
-            override fun getVerticalSnapPreference() = SNAP_TO_START
-        }
-        scroller.targetPosition = position
-        list?.layoutManager?.startSmoothScroll(scroller)
-    }
-
-    private fun markActive(recent: Boolean) {
+    // Fills the grid with [next], marks its tab, and shows the empty state when it has nothing.
+    private fun show(next: Shelf) {
+        shelf = next
         val ink = getColor(R.color.sb_ink)
-        for ((chip, on) in listOf(recentChip to recent, allChip to !recent)) {
-            chip?.background = pill(if (on) ink else Color.TRANSPARENT, ink)
-            chip?.setTextColor(getColor(if (on) R.color.sb_bg else R.color.sb_muted))
+        for ((target, tab) in tabs) {
+            val on = target == next
+            tab.isSelected = on
+            tab.background = pill(if (on) ink else Color.TRANSPARENT, ink)
+            tab.imageTintList =
+                ColorStateList.valueOf(getColor(if (on) R.color.sb_bg else R.color.sb_muted))
         }
+        val stickers = shelves[next].map { it.item }
+        grid.replace(stickers)
+        list?.scrollToPosition(0)
+        list?.visibility = if (stickers.isEmpty()) View.GONE else View.VISIBLE
+        empty?.visibility = if (stickers.isEmpty()) View.VISIBLE else View.GONE
+        val (title, body) = when {
+            shelves.libraryEmpty -> R.string.kb_empty_title to R.string.kb_empty_body
+            next == Shelf.Favourites -> R.string.ime_no_favourites to R.string.kb_no_favourites_body
+            else -> R.string.ime_no_recents to R.string.kb_no_recents_body
+        }
+        emptyTitle?.setText(title)
+        emptyBody?.setText(body)
+        openApp?.visibility = if (shelves.libraryEmpty) View.VISIBLE else View.GONE
     }
 
     private fun insertOrCopy(sticker: Sticker) {
@@ -323,47 +322,19 @@ class StickerImeService : InputMethodService() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private sealed interface Row {
-        data class Label(@StringRes val text: Int) : Row
-        data class Cell(val sticker: Sticker) : Row
-    }
-
-    private class Holder(view: View, val image: ImageView?) : RecyclerView.ViewHolder(view)
+    private class Holder(view: View, val image: ImageView) : RecyclerView.ViewHolder(view)
 
     private inner class GridAdapter : RecyclerView.Adapter<Holder>() {
-        var rows: List<Row> = emptyList()
-            private set
+        private var stickers: List<Sticker> = emptyList()
 
-        /** Position of the All label, or 0 when there is no Recent section. */
-        var allStart = 0
-            private set
-
-        fun replace(recents: List<Sticker>, all: List<Sticker>) {
-            val head = if (recents.isEmpty()) emptyList() else
-                listOf(Row.Label(R.string.kb_recent)) + recents.map(Row::Cell) +
-                    Row.Label(R.string.kb_all)
-            allStart = max(0, head.size - 1)
-            rows = head + all.map(Row::Cell)
+        fun replace(next: List<Sticker>) {
+            stickers = next
             notifyDataSetChanged()
         }
 
-        override fun getItemCount() = rows.size
-
-        override fun getItemViewType(position: Int) =
-            if (rows[position] is Row.Label) LABEL else CELL
+        override fun getItemCount() = stickers.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-            if (viewType == LABEL) {
-                val label = TextView(parent.context).apply {
-                    setTextColor(getColor(R.color.sb_muted))
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    isAllCaps = true
-                    letterSpacing = 0.06f
-                    setPadding(dp(7), dp(10), dp(7), dp(6))
-                }
-                return Holder(label, image = null)
-            }
             val cell = object : FrameLayout(parent.context) {
                 override fun onMeasure(widthSpec: Int, heightSpec: Int) {
                     val height = (MeasureSpec.getSize(widthSpec) / 1.1f).toInt()
@@ -405,22 +376,17 @@ class StickerImeService : InputMethodService() {
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
-            when (val row = rows[position]) {
-                is Row.Label -> (holder.itemView as TextView).setText(row.text)
-                is Row.Cell -> {
-                    holder.image?.setImageBitmap(StickerStore.decode(row.sticker.sent))
-                    holder.itemView.setOnClickListener { v ->
-                        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        insertOrCopy(row.sticker)
-                    }
-                    // A handled long click already plays the LONG_PRESS haptic.
-                    holder.itemView.setOnLongClickListener {
-                        copyToClipboard(row.sticker)
-                        Toast.makeText(this@StickerImeService, R.string.copied, Toast.LENGTH_SHORT)
-                            .show()
-                        true
-                    }
-                }
+            val sticker = stickers[position]
+            holder.image.setImageBitmap(StickerStore.decode(sticker.sent))
+            holder.itemView.setOnClickListener { v ->
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                insertOrCopy(sticker)
+            }
+            // A handled long click already plays the LONG_PRESS haptic.
+            holder.itemView.setOnLongClickListener {
+                copyToClipboard(sticker)
+                Toast.makeText(this@StickerImeService, R.string.copied, Toast.LENGTH_SHORT).show()
+                true
             }
         }
     }
@@ -429,7 +395,5 @@ class StickerImeService : InputMethodService() {
         private const val MIN_COLUMNS = 4
         private const val CELL_DP = 88
         private const val SWITCH_BACK_MS = 120L
-        private const val LABEL = 0
-        private const val CELL = 1
     }
 }
